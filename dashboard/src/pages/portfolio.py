@@ -1,8 +1,6 @@
 import dash
 from dash import html, dcc
 import dash_bootstrap_components as dbc
-import plotly.graph_objects as go
-import plotly.express as px
 
 from src.api import (
     get_portfolio,
@@ -11,6 +9,7 @@ from src.api import (
     get_risk_contributions,
     get_correlation,
 )
+from src.components import metric_card, data_table, bar_chart, pie_chart, heatmap_chart
 
 dash.register_page(__name__, path_template="/portfolio/<portfolio_id>", name="Portfolio")
 
@@ -32,7 +31,10 @@ def layout(portfolio_id=None):
 
     # Positions table
     positions = value_data["positions"] if value_data else portfolio["positions"]
-    table_rows = []
+    headers = ["Ticker", "Name", "Weight", "Price", "Change"]
+    rows = []
+    row_classes = []
+
     for pos in positions:
         price = pos.get("price", "—")
         change = pos.get("change_pct")
@@ -42,61 +44,21 @@ def layout(portfolio_id=None):
             change_class = "text-success" if change >= 0 else "text-danger"
             change_str = f"{change:+.2f}%"
 
-        table_rows.append(
-            html.Tr(
-                [
-                    html.Td(pos["ticker"]),
-                    html.Td(pos["name"]),
-                    html.Td(f"{pos['weight']*100:.1f}%"),
-                    html.Td(f"${price}" if isinstance(price, (int, float)) else price),
-                    html.Td(change_str, className=change_class),
-                ]
-            )
-        )
+        rows.append([
+            pos["ticker"],
+            pos["name"],
+            f"{pos['weight']*100:.1f}%",
+            f"${price}" if isinstance(price, (int, float)) else price,
+            change_str,
+        ])
+        row_classes.append(["", "", "", "", change_class])
 
-    positions_table = dbc.Table(
-        [
-            html.Thead(
-                html.Tr(
-                    [
-                        html.Th("Ticker"),
-                        html.Th("Name"),
-                        html.Th("Weight"),
-                        html.Th("Price"),
-                        html.Th("Change"),
-                    ]
-                )
-            ),
-            html.Tbody(table_rows),
-        ],
-        bordered=True,
-        hover=True,
-        responsive=True,
-        className="table-dark",
-    )
+    positions_table = data_table(headers, rows, row_classes)
 
     # Allocation pie chart
     labels = [p["ticker"] for p in portfolio["positions"]]
     values = [p["weight"] for p in portfolio["positions"]]
-
-    pie_fig = go.Figure(
-        data=[
-            go.Pie(
-                labels=labels,
-                values=values,
-                hole=0.4,
-                textinfo="label+percent",
-                textposition="outside",
-            )
-        ]
-    )
-    pie_fig.update_layout(
-        template="plotly_dark",
-        paper_bgcolor="rgba(0,0,0,0)",
-        margin=dict(l=20, r=20, t=20, b=20),
-        showlegend=False,
-        height=350,
-    )
+    pie_fig = pie_chart(labels, values)
 
     # Risk metrics cards
     risk_cards = []
@@ -110,66 +72,29 @@ def layout(portfolio_id=None):
             ("Max DD", f"{risk['max_drawdown']}%", "danger"),
         ]
         for name, value, color in metrics:
-            risk_cards.append(
-                dbc.Col(
-                    dbc.Card(
-                        dbc.CardBody(
-                            [
-                                html.P(name, className="text-muted mb-1 small"),
-                                html.H4(value, className=f"text-{color} mb-0"),
-                            ]
-                        ),
-                        className="text-center",
-                    ),
-                    md=2,
-                )
-            )
+            risk_cards.append(metric_card(name, value, color))
 
     # Risk contributions chart
-    contrib_fig = go.Figure()
+    contrib_fig = None
     if contributions:
         tickers = [c["ticker"] for c in contributions]
         pct_contrib = [c["pct_contribution"] for c in contributions]
-
-        contrib_fig.add_trace(
-            go.Bar(
-                x=tickers,
-                y=pct_contrib,
-                marker_color="#e74c3c",
-                text=[f"{v:.1f}%" for v in pct_contrib],
-                textposition="outside",
-            )
-        )
-        contrib_fig.update_layout(
-            template="plotly_dark",
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            margin=dict(l=40, r=40, t=20, b=40),
+        contrib_fig = bar_chart(
+            tickers,
+            pct_contrib,
+            color="#e74c3c",
+            text=[f"{v:.1f}%" for v in pct_contrib],
             yaxis_title="% Contribution to VaR",
             showlegend=False,
-            height=350,
         )
 
     # Correlation heatmap
-    corr_fig = go.Figure()
+    corr_fig = None
     if correlation and correlation["matrix"]:
-        corr_fig = go.Figure(
-            data=go.Heatmap(
-                z=correlation["matrix"],
-                x=correlation["tickers"],
-                y=correlation["tickers"],
-                colorscale="RdBu",
-                zmid=0,
-                text=correlation["matrix"],
-                texttemplate="%{text:.2f}",
-                textfont={"size": 10},
-            )
-        )
-        corr_fig.update_layout(
-            template="plotly_dark",
-            paper_bgcolor="rgba(0,0,0,0)",
-            margin=dict(l=60, r=40, t=20, b=60),
-            height=350,
+        corr_fig = heatmap_chart(
+            correlation["matrix"],
+            correlation["tickers"],
+            correlation["tickers"],
         )
 
     return html.Div(
@@ -183,13 +108,7 @@ def layout(portfolio_id=None):
             # Two columns: positions table and pie chart
             dbc.Row(
                 [
-                    dbc.Col(
-                        [
-                            html.H5("Holdings", className="mb-3"),
-                            positions_table,
-                        ],
-                        md=7,
-                    ),
+                    dbc.Col([html.H5("Holdings", className="mb-3"), positions_table], md=7),
                     dbc.Col(
                         [
                             html.H5("Allocation", className="mb-3"),
@@ -215,7 +134,7 @@ def layout(portfolio_id=None):
                                 figure=contrib_fig,
                                 config={"displayModeBar": False},
                                 style={"height": "350px"},
-                            ),
+                            ) if contrib_fig else html.P("Loading..."),
                         ],
                         md=6,
                     ),
@@ -226,7 +145,7 @@ def layout(portfolio_id=None):
                                 figure=corr_fig,
                                 config={"displayModeBar": False},
                                 style={"height": "350px"},
-                            ),
+                            ) if corr_fig else html.P("Loading..."),
                         ],
                         md=6,
                     ),

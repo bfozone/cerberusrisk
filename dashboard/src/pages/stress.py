@@ -1,16 +1,15 @@
 import dash
 from dash import html, dcc, callback, Output, Input
 import dash_bootstrap_components as dbc
-import plotly.graph_objects as go
 
 from src.api import get_stress_scenarios, compare_stress
+from src.components import data_table, bar_chart
 
 dash.register_page(__name__, path="/stress", name="Stress Testing")
 
 
 def layout():
     scenarios = get_stress_scenarios()
-
     scenario_options = [{"label": s["name"], "value": s["id"]} for s in scenarios]
 
     return html.Div(
@@ -60,12 +59,7 @@ def update_stress_results(scenario_id):
                 html.H5(scenario["name"], className="mb-2"),
                 html.P(scenario["description"], className="text-muted mb-3"),
                 html.H6("Shocks by Asset Class:", className="mb-2"),
-                html.Ul(
-                    [
-                        html.Li(f"{asset}: {shock:+.0f}%")
-                        for asset, shock in scenario["shocks"].items()
-                    ]
-                ),
+                html.Ul([html.Li(f"{k}: {v:+.0f}%") for k, v in scenario["shocks"].items()]),
             ]
         ),
         className="mb-4",
@@ -76,90 +70,47 @@ def update_stress_results(scenario_id):
     pnl_values = [r["total_pnl_pct"] for r in results]
     colors = ["#e74c3c" if v < 0 else "#27ae60" for v in pnl_values]
 
-    comparison_fig = go.Figure(
-        data=[
-            go.Bar(
-                x=portfolio_names,
-                y=pnl_values,
-                marker_color=colors,
-                text=[f"{v:+.1f}%" for v in pnl_values],
-                textposition="outside",
-            )
-        ]
-    )
-    comparison_fig.update_layout(
-        template="plotly_dark",
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        margin=dict(l=40, r=40, t=20, b=40),
-        yaxis_title="Portfolio P&L (%)",
+    comparison_fig = bar_chart(
+        portfolio_names,
+        pnl_values,
+        color=colors,
+        text=[f"{v:+.1f}%" for v in pnl_values],
         height=300,
+        yaxis_title="Portfolio P&L (%)",
     )
 
-    # Results table
-    table_rows = []
+    # Summary table
+    summary_rows = []
+    summary_classes = []
     for result in results:
         pnl = result["total_pnl_pct"]
         pnl_class = "text-danger" if pnl < 0 else "text-success"
-        table_rows.append(
-            html.Tr(
-                [
-                    html.Td(result["portfolio_name"]),
-                    html.Td(f"{pnl:+.2f}%", className=pnl_class),
-                ]
-            )
-        )
+        summary_rows.append([result["portfolio_name"], f"{pnl:+.2f}%"])
+        summary_classes.append(["", pnl_class])
 
-    results_table = dbc.Table(
-        [
-            html.Thead(html.Tr([html.Th("Portfolio"), html.Th("P&L Impact")])),
-            html.Tbody(table_rows),
-        ],
-        bordered=True,
-        hover=True,
-        className="table-dark",
-    )
+    results_table = data_table(["Portfolio", "P&L Impact"], summary_rows, summary_classes)
 
     # Detailed breakdown for each portfolio
     detail_cards = []
     for result in results:
         positions = result["positions"]
-        pos_rows = []
+        headers = ["Ticker", "Weight", "Asset Class", "Shock", "P&L"]
+        rows = []
+        row_classes = []
+
         for pos in positions:
             pnl = pos["pnl_pct"]
             pnl_class = "text-danger" if pnl < 0 else "text-success"
-            pos_rows.append(
-                html.Tr(
-                    [
-                        html.Td(pos["ticker"]),
-                        html.Td(f"{pos['weight']*100:.1f}%"),
-                        html.Td(pos["asset_class"]),
-                        html.Td(f"{pos['shock']:+.0f}%"),
-                        html.Td(f"{pnl:+.2f}%", className=pnl_class),
-                    ]
-                )
-            )
+            rows.append([
+                pos["ticker"],
+                f"{pos['weight']*100:.1f}%",
+                pos["asset_class"],
+                f"{pos['shock']:+.0f}%",
+                f"{pnl:+.2f}%",
+            ])
+            row_classes.append(["", "", "", "", pnl_class])
 
-        detail_table = dbc.Table(
-            [
-                html.Thead(
-                    html.Tr(
-                        [
-                            html.Th("Ticker"),
-                            html.Th("Weight"),
-                            html.Th("Asset Class"),
-                            html.Th("Shock"),
-                            html.Th("P&L"),
-                        ]
-                    )
-                ),
-                html.Tbody(pos_rows),
-            ],
-            bordered=True,
-            hover=True,
-            size="sm",
-            className="table-dark",
-        )
+        detail_table = data_table(headers, rows, row_classes, size="sm")
 
         total_pnl = result["total_pnl_pct"]
         total_class = "text-danger" if total_pnl < 0 else "text-success"
@@ -172,10 +123,7 @@ def update_stress_results(scenario_id):
                             html.Div(
                                 [
                                     html.Span(result["portfolio_name"]),
-                                    html.Span(
-                                        f"{total_pnl:+.2f}%",
-                                        className=f"float-end {total_class}",
-                                    ),
+                                    html.Span(f"{total_pnl:+.2f}%", className=f"float-end {total_class}"),
                                 ]
                             )
                         ),
@@ -191,11 +139,7 @@ def update_stress_results(scenario_id):
         [
             scenario_card,
             html.H5("Portfolio Comparison", className="mb-3"),
-            dcc.Graph(
-                figure=comparison_fig,
-                config={"displayModeBar": False},
-                style={"height": "300px"},
-            ),
+            dcc.Graph(figure=comparison_fig, config={"displayModeBar": False}, style={"height": "300px"}),
             html.Hr(),
             html.H5("Detailed Breakdown", className="mb-3"),
             dbc.Row(detail_cards),
