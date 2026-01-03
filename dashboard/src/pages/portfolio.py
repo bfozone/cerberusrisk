@@ -1,6 +1,6 @@
 import dash
 from dash import html, dcc
-import dash_bootstrap_components as dbc
+import dash_mantine_components as dmc
 
 from src.api import (
     get_portfolio,
@@ -16,13 +16,13 @@ dash.register_page(__name__, path_template="/portfolio/<portfolio_id>", name="Po
 
 def layout(portfolio_id=None):
     if not portfolio_id:
-        return html.Div("Portfolio not found")
+        return dmc.Text("Portfolio not found")
 
     portfolio_id = int(portfolio_id)
     portfolio = get_portfolio(portfolio_id)
 
     if not portfolio:
-        return html.Div("Portfolio not found")
+        return dmc.Text("Portfolio not found")
 
     value_data = get_portfolio_value(portfolio_id)
     risk = get_portfolio_risk(portfolio_id)
@@ -33,15 +33,15 @@ def layout(portfolio_id=None):
     positions = value_data["positions"] if value_data else portfolio["positions"]
     headers = ["Ticker", "Name", "Weight", "Price", "Change"]
     rows = []
-    row_classes = []
+    row_colors = []
 
     for pos in positions:
         price = pos.get("price", "—")
         change = pos.get("change_pct")
-        change_class = ""
+        change_color = None
         change_str = "—"
         if change is not None:
-            change_class = "text-success" if change >= 0 else "text-danger"
+            change_color = "green" if change >= 0 else "red"
             change_str = f"{change:+.2f}%"
 
         rows.append([
@@ -51,9 +51,9 @@ def layout(portfolio_id=None):
             f"${price}" if isinstance(price, (int, float)) else price,
             change_str,
         ])
-        row_classes.append(["", "", "", "", change_class])
+        row_colors.append([None, None, None, None, change_color])
 
-    positions_table = data_table(headers, rows, row_classes)
+    positions_table = data_table(headers, rows, row_colors)
 
     # Allocation pie chart
     labels = [p["ticker"] for p in portfolio["positions"]]
@@ -64,15 +64,15 @@ def layout(portfolio_id=None):
     risk_cards = []
     if risk:
         metrics = [
-            ("VaR 95%", f"{risk['var_95']}%", "warning"),
-            ("VaR 99%", f"{risk['var_99']}%", "danger"),
-            ("CVaR 95%", f"{risk['cvar_95']}%", "warning"),
-            ("Volatility", f"{risk['volatility']}%", "info"),
-            ("Sharpe", f"{risk['sharpe']}", "success" if risk["sharpe"] > 0.5 else "secondary"),
-            ("Max DD", f"{risk['max_drawdown']}%", "danger"),
+            ("VaR 95%", f"{risk['var_95']}%", "yellow"),
+            ("VaR 99%", f"{risk['var_99']}%", "red"),
+            ("CVaR 95%", f"{risk['cvar_95']}%", "yellow"),
+            ("Volatility", f"{risk['volatility']}%", "blue"),
+            ("Sharpe", f"{risk['sharpe']}", "green" if risk["sharpe"] > 0.5 else "gray"),
+            ("Max DD", f"{risk['max_drawdown']}%", "red"),
         ]
         for name, value, color in metrics:
-            risk_cards.append(metric_card(name, value, color))
+            risk_cards.append(dmc.GridCol(metric_card(name, value, color), span=2))
 
     # Risk contributions chart
     contrib_fig = None
@@ -97,59 +97,57 @@ def layout(portfolio_id=None):
             correlation["tickers"],
         )
 
-    return html.Div(
+    return dmc.Stack(
         [
-            html.H2(portfolio["name"], className="mb-2"),
-            html.P(portfolio["description"], className="text-muted mb-4"),
+            dmc.Title(portfolio["name"], order=2),
+            dmc.Text(portfolio["description"], c="dimmed"),
+
             # Risk metrics
-            html.H5("Risk Metrics", className="mb-3"),
-            dbc.Row(risk_cards, className="mb-4") if risk_cards else html.P("Loading..."),
-            html.Hr(),
-            # Two columns: positions table and pie chart
-            dbc.Row(
+            dmc.Title("Risk Metrics", order=5, mt="md"),
+            dmc.Grid(risk_cards) if risk_cards else dmc.Text("Loading..."),
+
+            dmc.Divider(my="md"),
+
+            # Holdings and allocation
+            dmc.Grid(
                 [
-                    dbc.Col([html.H5("Holdings", className="mb-3"), positions_table], md=7),
-                    dbc.Col(
-                        [
-                            html.H5("Allocation", className="mb-3"),
-                            dcc.Graph(
-                                figure=pie_fig,
-                                config={"displayModeBar": False},
-                                style={"height": "350px"},
-                            ),
-                        ],
-                        md=5,
+                    dmc.GridCol(
+                        dmc.Stack([dmc.Title("Holdings", order=5), positions_table], gap="sm"),
+                        span=7,
+                    ),
+                    dmc.GridCol(
+                        dmc.Stack([
+                            dmc.Title("Allocation", order=5),
+                            dcc.Graph(figure=pie_fig, config={"displayModeBar": False}),
+                        ], gap="sm"),
+                        span=5,
                     ),
                 ],
-                className="mb-4",
             ),
-            html.Hr(),
+
+            dmc.Divider(my="md"),
+
             # Risk analysis
-            dbc.Row(
+            dmc.Grid(
                 [
-                    dbc.Col(
-                        [
-                            html.H5("Risk Contribution", className="mb-3"),
-                            dcc.Graph(
-                                figure=contrib_fig,
-                                config={"displayModeBar": False},
-                                style={"height": "350px"},
-                            ) if contrib_fig else html.P("Loading..."),
-                        ],
-                        md=6,
+                    dmc.GridCol(
+                        dmc.Stack([
+                            dmc.Title("Risk Contribution", order=5),
+                            dcc.Graph(figure=contrib_fig, config={"displayModeBar": False})
+                            if contrib_fig else dmc.Text("Loading..."),
+                        ], gap="sm"),
+                        span=6,
                     ),
-                    dbc.Col(
-                        [
-                            html.H5("Correlation Matrix", className="mb-3"),
-                            dcc.Graph(
-                                figure=corr_fig,
-                                config={"displayModeBar": False},
-                                style={"height": "350px"},
-                            ) if corr_fig else html.P("Loading..."),
-                        ],
-                        md=6,
+                    dmc.GridCol(
+                        dmc.Stack([
+                            dmc.Title("Correlation Matrix", order=5),
+                            dcc.Graph(figure=corr_fig, config={"displayModeBar": False})
+                            if corr_fig else dmc.Text("Loading..."),
+                        ], gap="sm"),
+                        span=6,
                     ),
-                ]
+                ],
             ),
-        ]
+        ],
+        gap="sm",
     )

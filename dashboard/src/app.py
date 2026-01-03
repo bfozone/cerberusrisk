@@ -1,35 +1,55 @@
 import dash
-from dash import Dash, html, dcc
-import dash_bootstrap_components as dbc
+from dash import Dash, html
+import dash_mantine_components as dmc
+
+from src.theme import theme
 
 app = Dash(
     __name__,
     use_pages=True,
-    external_stylesheets=[dbc.themes.DARKLY],
     suppress_callback_exceptions=True,
 )
 
-navbar = dbc.NavbarSimple(
-    children=[
-        dbc.NavItem(dbc.NavLink("Home", href="/")),
-        dbc.NavItem(dbc.NavLink("Global Equity", href="/portfolio/1")),
-        dbc.NavItem(dbc.NavLink("Fixed Income", href="/portfolio/2")),
-        dbc.NavItem(dbc.NavLink("Multi-Asset", href="/portfolio/3")),
-        dbc.NavItem(dbc.NavLink("Stress Test", href="/stress")),
+navbar = dmc.Group(
+    [
+        dmc.Anchor("Home", href="/", c="white", underline="never"),
+        dmc.Anchor("Global Equity", href="/portfolio/1", c="white", underline="never"),
+        dmc.Anchor("Fixed Income", href="/portfolio/2", c="white", underline="never"),
+        dmc.Anchor("Multi-Asset", href="/portfolio/3", c="white", underline="never"),
+        dmc.Anchor("Stress Test", href="/stress", c="white", underline="never"),
     ],
-    brand="CerberusRisk",
-    brand_href="/",
-    color="primary",
-    dark=True,
+    gap="lg",
 )
 
-app.layout = dbc.Container(
-    [
-        navbar,
-        html.Br(),
-        dash.page_container,
-    ],
-    fluid=True,
+header = dmc.AppShellHeader(
+    dmc.Group(
+        [
+            dmc.Title("CerberusRisk", order=3, c="white"),
+            navbar,
+        ],
+        justify="space-between",
+        h="100%",
+        px="md",
+    )
+)
+
+app.layout = dmc.MantineProvider(
+    theme=theme,
+    forceColorScheme="dark",
+    children=dmc.AppShell(
+        [
+            header,
+            dmc.AppShellMain(
+                dmc.Container(
+                    dash.page_container,
+                    size="xl",
+                    py="md",
+                )
+            ),
+        ],
+        header={"height": 60},
+        padding="md",
+    ),
 )
 
 if __name__ == "__main__":

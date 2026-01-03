@@ -1,6 +1,6 @@
 import dash
 from dash import html, dcc
-import dash_bootstrap_components as dbc
+import dash_mantine_components as dmc
 import plotly.graph_objects as go
 
 from src.api import get_portfolios, get_portfolio_risk
@@ -18,7 +18,7 @@ def layout():
     for p in portfolios:
         risk = get_portfolio_risk(p["id"])
         risk_data.append({"name": p["name"], "risk": risk})
-        cards.append(dbc.Col(portfolio_card(p, risk), md=4))
+        cards.append(dmc.GridCol(portfolio_card(p, risk), span=4))
 
     # Comparison chart
     fig = go.Figure()
@@ -37,11 +37,12 @@ def layout():
             legend=dict(orientation="h", yanchor="bottom", y=1.02),
         )
 
-    return html.Div(
+    return dmc.Stack(
         [
-            html.H2("Portfolio Overview", className="mb-4"),
-            dbc.Row(cards, className="mb-4"),
-            html.H4("Risk Comparison", className="mt-4 mb-3"),
+            dmc.Title("Portfolio Overview", order=2),
+            dmc.Grid(cards),
+            dmc.Title("Risk Comparison", order=4, mt="lg"),
             dcc.Graph(figure=fig, config={"displayModeBar": False}),
-        ]
+        ],
+        gap="md",
     )

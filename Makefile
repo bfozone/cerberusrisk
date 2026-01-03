@@ -7,13 +7,12 @@ down:
 	podman compose down
 
 build:
-	podman compose up --build -d
+	podman compose build
+	podman compose up -d --force-recreate
 
 rebuild:
-	podman compose down
-	podman build --no-cache -t cerberusrisk_api ./api
-	podman build --no-cache -t cerberusrisk_dashboard ./dashboard
-	podman compose up -d
+	podman compose build --no-cache
+	podman compose up -d --force-recreate
 
 logs:
 	podman compose logs -f

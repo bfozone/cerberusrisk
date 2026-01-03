@@ -1,86 +1,68 @@
+import dash_mantine_components as dmc
 from dash import html
-import dash_bootstrap_components as dbc
 
 
-def metric_card(label: str, value: str, color: str = "primary", width: int = 2):
+def metric_card(label: str, value: str, color: str = "blue") -> dmc.Card:
     """Create a single metric card."""
-    return dbc.Col(
-        dbc.Card(
-            dbc.CardBody(
-                [
-                    html.P(label, className="text-muted mb-1 small"),
-                    html.H4(value, className=f"text-{color} mb-0"),
-                ]
-            ),
-            className="text-center",
-        ),
-        md=width,
+    return dmc.Card(
+        children=[
+            dmc.Text(label, size="sm", c="dimmed"),
+            dmc.Title(value, order=4, c=color),
+        ],
+        withBorder=True,
+        padding="md",
+        radius="sm",
+        style={"textAlign": "center"},
     )
 
 
-def portfolio_card(portfolio: dict, risk: dict | None):
+def portfolio_card(portfolio: dict, risk: dict | None) -> dmc.Card:
     """Create a portfolio summary card with risk metrics."""
-    risk_color = "success" if risk and risk.get("var_95", 0) < 15 else "warning"
+    risk_color = "green" if risk and risk.get("var_95", 0) < 15 else "yellow"
 
-    return dbc.Card(
-        [
-            dbc.CardHeader(html.H5(portfolio["name"], className="mb-0")),
-            dbc.CardBody(
+    metrics = []
+    if risk:
+        metrics = [
+            ("VaR 95%", f"{risk['var_95']}%", risk_color),
+            ("Volatility", f"{risk['volatility']}%", "blue"),
+            ("Sharpe", f"{risk['sharpe']}", "blue"),
+            ("Max DD", f"{risk['max_drawdown']}%", "red"),
+        ]
+
+    metric_items = [
+        dmc.GridCol(
+            [
+                dmc.Text(label, size="xs", c="dimmed"),
+                dmc.Text(value, size="lg", fw=600, c=color),
+            ],
+            span=6,
+        )
+        for label, value, color in metrics
+    ] if metrics else [dmc.Text("Loading...", c="dimmed")]
+
+    return dmc.Card(
+        children=[
+            dmc.CardSection(
+                dmc.Title(portfolio["name"], order=5, p="sm"),
+                withBorder=True,
+            ),
+            dmc.Stack(
                 [
-                    html.P(portfolio["description"], className="text-muted small"),
-                    html.Hr(),
-                    dbc.Row(
-                        [
-                            dbc.Col(
-                                [
-                                    html.P("VaR 95%", className="text-muted mb-0 small"),
-                                    html.H4(
-                                        f"{risk['var_95']}%" if risk else "—",
-                                        className=f"text-{risk_color}",
-                                    ),
-                                ],
-                                width=6,
-                            ),
-                            dbc.Col(
-                                [
-                                    html.P("Volatility", className="text-muted mb-0 small"),
-                                    html.H4(f"{risk['volatility']}%" if risk else "—"),
-                                ],
-                                width=6,
-                            ),
-                        ]
-                    ),
-                    dbc.Row(
-                        [
-                            dbc.Col(
-                                [
-                                    html.P("Sharpe", className="text-muted mb-0 small"),
-                                    html.H4(f"{risk['sharpe']}" if risk else "—"),
-                                ],
-                                width=6,
-                            ),
-                            dbc.Col(
-                                [
-                                    html.P("Max DD", className="text-muted mb-0 small"),
-                                    html.H4(
-                                        f"{risk['max_drawdown']}%" if risk else "—",
-                                        className="text-danger",
-                                    ),
-                                ],
-                                width=6,
-                            ),
-                        ],
-                        className="mt-2",
-                    ),
-                    html.Hr(),
-                    dbc.Button(
-                        "View Details",
+                    dmc.Text(portfolio["description"], size="sm", c="dimmed"),
+                    dmc.Divider(),
+                    dmc.Grid(metric_items, gutter="xs"),
+                    dmc.Divider(),
+                    dmc.Anchor(
+                        dmc.Button("View Details", size="xs", variant="light"),
                         href=f"/portfolio/{portfolio['id']}",
-                        color="primary",
-                        size="sm",
                     ),
-                ]
+                ],
+                gap="sm",
+                mt="sm",
             ),
         ],
-        className="h-100",
+        withBorder=True,
+        padding="md",
+        radius="sm",
+        h="100%",
     )
