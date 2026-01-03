@@ -18,7 +18,7 @@ def layout():
     for p in portfolios:
         risk = get_portfolio_risk(p["id"])
         risk_data.append({"name": p["name"], "risk": risk})
-        cards.append(dmc.GridCol(portfolio_card(p, risk), span=4))
+        cards.append(dmc.GridCol(portfolio_card(p, risk), span={"base": 12, "sm": 6, "md": 4}))
 
     # Comparison chart
     fig = go.Figure()
@@ -40,7 +40,7 @@ def layout():
     return dmc.Stack(
         [
             dmc.Title("Portfolio Overview", order=2),
-            dmc.Grid(cards),
+            dmc.Grid(cards, gutter="md"),
             dmc.Title("Risk Comparison", order=4, mt="lg"),
             dcc.Graph(figure=fig, config={"displayModeBar": False}),
         ],

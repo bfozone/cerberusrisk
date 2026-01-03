@@ -30,10 +30,13 @@ def data_table(
 
     tbody = dmc.TableTbody(tbody_rows)
 
-    return dmc.Table(
-        [thead, tbody],
-        striped=True,
-        highlightOnHover=True,
-        withTableBorder=True,
-        withColumnBorders=True,
+    return dmc.ScrollArea(
+        dmc.Table(
+            [thead, tbody],
+            striped=True,
+            highlightOnHover=True,
+            withTableBorder=True,
+            withColumnBorders=True,
+        ),
+        type="auto",
     )

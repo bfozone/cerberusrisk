@@ -72,7 +72,7 @@ def layout(portfolio_id=None):
             ("Max DD", f"{risk['max_drawdown']}%", "red"),
         ]
         for name, value, color in metrics:
-            risk_cards.append(dmc.GridCol(metric_card(name, value, color), span=2))
+            risk_cards.append(dmc.GridCol(metric_card(name, value, color), span={"base": 4, "sm": 2}))
 
     # Risk contributions chart
     contrib_fig = None
@@ -104,7 +104,7 @@ def layout(portfolio_id=None):
 
             # Risk metrics
             dmc.Title("Risk Metrics", order=5, mt="md"),
-            dmc.Grid(risk_cards) if risk_cards else dmc.Text("Loading..."),
+            dmc.Grid(risk_cards, gutter="xs") if risk_cards else dmc.Text("Loading..."),
 
             dmc.Divider(my="md"),
 
@@ -113,16 +113,17 @@ def layout(portfolio_id=None):
                 [
                     dmc.GridCol(
                         dmc.Stack([dmc.Title("Holdings", order=5), positions_table], gap="sm"),
-                        span=7,
+                        span={"base": 12, "md": 7},
                     ),
                     dmc.GridCol(
                         dmc.Stack([
                             dmc.Title("Allocation", order=5),
                             dcc.Graph(figure=pie_fig, config={"displayModeBar": False}),
                         ], gap="sm"),
-                        span=5,
+                        span={"base": 12, "md": 5},
                     ),
                 ],
+                gutter="md",
             ),
 
             dmc.Divider(my="md"),
@@ -136,7 +137,7 @@ def layout(portfolio_id=None):
                             dcc.Graph(figure=contrib_fig, config={"displayModeBar": False})
                             if contrib_fig else dmc.Text("Loading..."),
                         ], gap="sm"),
-                        span=6,
+                        span={"base": 12, "md": 6},
                     ),
                     dmc.GridCol(
                         dmc.Stack([
@@ -144,9 +145,10 @@ def layout(portfolio_id=None):
                             dcc.Graph(figure=corr_fig, config={"displayModeBar": False})
                             if corr_fig else dmc.Text("Loading..."),
                         ], gap="sm"),
-                        span=6,
+                        span={"base": 12, "md": 6},
                     ),
                 ],
+                gutter="md",
             ),
         ],
         gap="sm",

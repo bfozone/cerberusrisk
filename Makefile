@@ -1,7 +1,13 @@
-.PHONY: up down build rebuild logs logs-api logs-dash ps clean test
+.PHONY: up down build rebuild logs logs-api logs-dash ps clean test dev prod
 
 up:
 	podman compose up -d
+
+dev:
+	podman compose up -d --force-recreate
+
+prod:
+	podman compose -f compose.yml up -d --force-recreate
 
 down:
 	podman compose down

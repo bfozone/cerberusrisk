@@ -1,0 +1,9 @@
+# Local development overrides (auto-loaded by podman/docker compose)
+# NOT used in production (Coolify ignores this file)
+services:
+  dashboard:
+    environment:
+      DEBUG: "true"
+    userns_mode: keep-id
+    volumes:
+      - ./dashboard/src:/app/src

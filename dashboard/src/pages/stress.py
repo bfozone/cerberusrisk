@@ -20,7 +20,7 @@ def layout():
                 label="Select Scenario",
                 data=scenario_options,
                 value="equity_crash" if scenario_options else None,
-                w=300,
+                w={"base": "100%", "sm": 300},
             ),
             html.Div(id="stress-results"),
         ],
@@ -73,15 +73,6 @@ def update_stress_results(scenario_id):
         yaxis_title="Portfolio P&L (%)",
     )
 
-    # Summary table
-    summary_rows = []
-    summary_colors = []
-    for result in results:
-        pnl = result["total_pnl_pct"]
-        pnl_color = "red" if pnl < 0 else "green"
-        summary_rows.append([result["portfolio_name"], f"{pnl:+.2f}%"])
-        summary_colors.append([None, pnl_color])
-
     # Detailed breakdown for each portfolio
     detail_cards = []
     for result in results:
@@ -128,7 +119,7 @@ def update_stress_results(scenario_id):
                     padding="sm",
                     radius="sm",
                 ),
-                span=4,
+                span={"base": 12, "sm": 6, "lg": 4},
             )
         )
 
@@ -139,7 +130,7 @@ def update_stress_results(scenario_id):
             dcc.Graph(figure=comparison_fig, config={"displayModeBar": False}),
             dmc.Divider(my="md"),
             dmc.Title("Detailed Breakdown", order=5),
-            dmc.Grid(detail_cards),
+            dmc.Grid(detail_cards, gutter="md"),
         ],
         gap="md",
     )
