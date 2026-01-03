@@ -1,5 +1,5 @@
 import dash
-from dash import html, dcc
+from dash import dcc, callback, Output, Input
 import dash_mantine_components as dmc
 
 from src.api import (
@@ -10,6 +10,7 @@ from src.api import (
     get_correlation,
 )
 from src.components import metric_card, data_table, bar_chart, pie_chart, heatmap_chart
+from src.components.charts import CHART_COLORS
 
 dash.register_page(__name__, path_template="/portfolio/<portfolio_id>", name="Portfolio")
 
@@ -26,8 +27,6 @@ def layout(portfolio_id=None):
 
     value_data = get_portfolio_value(portfolio_id)
     risk = get_portfolio_risk(portfolio_id)
-    contributions = get_risk_contributions(portfolio_id)
-    correlation = get_correlation(portfolio_id)
 
     # Positions table
     positions = value_data["positions"] if value_data else portfolio["positions"]
@@ -55,18 +54,13 @@ def layout(portfolio_id=None):
 
     positions_table = data_table(headers, rows, row_colors)
 
-    # Allocation pie chart
-    labels = [p["ticker"] for p in portfolio["positions"]]
-    values = [p["weight"] for p in portfolio["positions"]]
-    pie_fig = pie_chart(labels, values)
-
     # Risk metrics cards
     risk_cards = []
     if risk:
         metrics = [
-            ("VaR 95%", f"{risk['var_95']}%", "yellow"),
+            ("VaR 95%", f"{risk['var_95']}%", "orange"),
             ("VaR 99%", f"{risk['var_99']}%", "red"),
-            ("CVaR 95%", f"{risk['cvar_95']}%", "yellow"),
+            ("CVaR 95%", f"{risk['cvar_95']}%", "orange"),
             ("Volatility", f"{risk['volatility']}%", "blue"),
             ("Sharpe", f"{risk['sharpe']}", "green" if risk["sharpe"] > 0.5 else "gray"),
             ("Max DD", f"{risk['max_drawdown']}%", "red"),
@@ -74,31 +68,10 @@ def layout(portfolio_id=None):
         for name, value, color in metrics:
             risk_cards.append(dmc.GridCol(metric_card(name, value, color), span={"base": 4, "sm": 2}))
 
-    # Risk contributions chart
-    contrib_fig = None
-    if contributions:
-        tickers = [c["ticker"] for c in contributions]
-        pct_contrib = [c["pct_contribution"] for c in contributions]
-        contrib_fig = bar_chart(
-            tickers,
-            pct_contrib,
-            color="#e74c3c",
-            text=[f"{v:.1f}%" for v in pct_contrib],
-            yaxis_title="% Contribution to VaR",
-            showlegend=False,
-        )
-
-    # Correlation heatmap
-    corr_fig = None
-    if correlation and correlation["matrix"]:
-        corr_fig = heatmap_chart(
-            correlation["matrix"],
-            correlation["tickers"],
-            correlation["tickers"],
-        )
-
+    # Store portfolio_id for callbacks
     return dmc.Stack(
         [
+            dcc.Store(id="portfolio-id-store", data=portfolio_id),
             dmc.Title(portfolio["name"], order=2),
             dmc.Text(portfolio["description"], c="dimmed"),
 
@@ -118,7 +91,7 @@ def layout(portfolio_id=None):
                     dmc.GridCol(
                         dmc.Stack([
                             dmc.Title("Allocation", order=5),
-                            dcc.Graph(figure=pie_fig, config={"displayModeBar": False}),
+                            dcc.Graph(id="portfolio-pie-chart", config={"displayModeBar": False}),
                         ], gap="sm"),
                         span={"base": 12, "md": 5},
                     ),
@@ -134,16 +107,14 @@ def layout(portfolio_id=None):
                     dmc.GridCol(
                         dmc.Stack([
                             dmc.Title("Risk Contribution", order=5),
-                            dcc.Graph(figure=contrib_fig, config={"displayModeBar": False})
-                            if contrib_fig else dmc.Text("Loading..."),
+                            dcc.Graph(id="portfolio-contrib-chart", config={"displayModeBar": False}),
                         ], gap="sm"),
                         span={"base": 12, "md": 6},
                     ),
                     dmc.GridCol(
                         dmc.Stack([
                             dmc.Title("Correlation Matrix", order=5),
-                            dcc.Graph(figure=corr_fig, config={"displayModeBar": False})
-                            if corr_fig else dmc.Text("Loading..."),
+                            dcc.Graph(id="portfolio-corr-chart", config={"displayModeBar": False}),
                         ], gap="sm"),
                         span={"base": 12, "md": 6},
                     ),
@@ -152,4 +123,72 @@ def layout(portfolio_id=None):
             ),
         ],
         gap="sm",
+    )
+
+
+@callback(
+    Output("portfolio-pie-chart", "figure"),
+    Input("color-scheme-store", "data"),
+    Input("portfolio-id-store", "data"),
+)
+def update_pie_chart(scheme, portfolio_id):
+    scheme = scheme or "dark"
+    if not portfolio_id:
+        return {}
+
+    portfolio = get_portfolio(portfolio_id)
+    if not portfolio:
+        return {}
+
+    labels = [p["ticker"] for p in portfolio["positions"]]
+    values = [p["weight"] for p in portfolio["positions"]]
+    return pie_chart(labels, values, scheme=scheme)
+
+
+@callback(
+    Output("portfolio-contrib-chart", "figure"),
+    Input("color-scheme-store", "data"),
+    Input("portfolio-id-store", "data"),
+)
+def update_contrib_chart(scheme, portfolio_id):
+    scheme = scheme or "dark"
+    if not portfolio_id:
+        return {}
+
+    contributions = get_risk_contributions(portfolio_id)
+    if not contributions:
+        return {}
+
+    tickers = [c["ticker"] for c in contributions]
+    pct_contrib = [c["pct_contribution"] for c in contributions]
+    return bar_chart(
+        tickers,
+        pct_contrib,
+        color=CHART_COLORS["negative"],
+        text=[f"{v:.1f}%" for v in pct_contrib],
+        yaxis_title="% Contribution to VaR",
+        showlegend=False,
+        scheme=scheme,
+    )
+
+
+@callback(
+    Output("portfolio-corr-chart", "figure"),
+    Input("color-scheme-store", "data"),
+    Input("portfolio-id-store", "data"),
+)
+def update_corr_chart(scheme, portfolio_id):
+    scheme = scheme or "dark"
+    if not portfolio_id:
+        return {}
+
+    correlation = get_correlation(portfolio_id)
+    if not correlation or not correlation["matrix"]:
+        return {}
+
+    return heatmap_chart(
+        correlation["matrix"],
+        correlation["tickers"],
+        correlation["tickers"],
+        scheme=scheme,
     )

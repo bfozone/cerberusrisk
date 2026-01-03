@@ -1,24 +1,24 @@
 import dash_mantine_components as dmc
-from dash import html
 
 
-def metric_card(label: str, value: str, color: str = "blue") -> dmc.Card:
+def metric_card(label: str, value: str, color: str | None = None) -> dmc.Card:
     """Create a single metric card."""
     return dmc.Card(
         children=[
             dmc.Text(label, size="sm", c="dimmed"),
-            dmc.Title(value, order=4, c=color),
+            dmc.Title(value, order=4, c=color or "blue"),
         ],
         withBorder=True,
         padding="md",
-        radius="sm",
+        radius="xs",
         style={"textAlign": "center"},
     )
 
 
 def portfolio_card(portfolio: dict, risk: dict | None) -> dmc.Card:
     """Create a portfolio summary card with risk metrics."""
-    risk_color = "green" if risk and risk.get("var_95", 0) < 15 else "yellow"
+    var_value = risk.get("var_95", 0) if risk else 0
+    risk_color = "green" if var_value < 15 else "orange"
 
     metrics = []
     if risk:
@@ -63,6 +63,6 @@ def portfolio_card(portfolio: dict, risk: dict | None) -> dmc.Card:
         ],
         withBorder=True,
         padding="md",
-        radius="sm",
+        radius="xs",
         h="100%",
     )

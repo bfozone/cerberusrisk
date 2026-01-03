@@ -1,0 +1,160 @@
+/* Smooth theme transition */
+*,
+*::before,
+*::after {
+    transition: background-color 0.2s ease,
+                border-color 0.2s ease,
+                color 0.15s ease,
+                box-shadow 0.2s ease;
+}
+
+/* Disable transition on charts to prevent flicker */
+.js-plotly-plot,
+.js-plotly-plot * {
+    transition: none !important;
+}
+
+/* Light mode card shadows */
+[data-mantine-color-scheme="light"] .mantine-Card-root {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08),
+                0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+[data-mantine-color-scheme="light"] .mantine-Card-root:hover {
+    box-shadow: 0 8px 16px rgba(124, 58, 237, 0.12),
+                0 4px 8px rgba(0, 0, 0, 0.04);
+    border-color: #d8b4fe;
+}
+
+/* Dark mode glow effect on hover */
+[data-mantine-color-scheme="dark"] .mantine-Card-root:hover {
+    border-color: #a78bfa;
+    box-shadow: 0 0 24px rgba(167, 139, 250, 0.15),
+                0 0 8px rgba(167, 139, 250, 0.1);
+}
+
+/* Metric card hover effect - subtle lift */
+.mantine-Card-root {
+    transition: transform 0.2s ease,
+                box-shadow 0.2s ease,
+                border-color 0.2s ease;
+}
+
+.mantine-Card-root:hover {
+    transform: translateY(-2px);
+}
+
+/* Table row hover enhancement */
+.mantine-Table-tr {
+    transition: background-color 0.15s ease;
+}
+
+/* Tabular numbers for proper alignment in tables */
+.mantine-Table-root {
+    font-variant-numeric: tabular-nums;
+}
+
+.mantine-Table-td,
+.mantine-Table-th {
+    font-feature-settings: "tnum" 1;
+}
+
+/* Nav link hover effect */
+.mantine-Anchor-root {
+    transition: color 0.15s ease,
+                border-color 0.15s ease;
+}
+
+/* Focus ring styling for accessibility - violet accent */
+.mantine-focus-auto:focus-visible {
+    outline: 2px solid #a78bfa;
+    outline-offset: 2px;
+}
+
+[data-mantine-color-scheme="light"] .mantine-focus-auto:focus-visible {
+    outline-color: #7c3aed;
+}
+
+/* Button focus state */
+.mantine-Button-root:focus-visible,
+.mantine-ActionIcon-root:focus-visible {
+    outline: 2px solid #a78bfa;
+    outline-offset: 2px;
+}
+
+[data-mantine-color-scheme="light"] .mantine-Button-root:focus-visible,
+[data-mantine-color-scheme="light"] .mantine-ActionIcon-root:focus-visible {
+    outline-color: #7c3aed;
+}
+
+/* Smooth scrollbar for webkit browsers */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+[data-mantine-color-scheme="dark"] ::-webkit-scrollbar-thumb {
+    background: #2d2d3a;
+    border-radius: 4px;
+}
+
+[data-mantine-color-scheme="dark"] ::-webkit-scrollbar-thumb:hover {
+    background: #3d3d4a;
+}
+
+[data-mantine-color-scheme="light"] ::-webkit-scrollbar-thumb {
+    background: #e9e5f0;
+    border-radius: 4px;
+}
+
+[data-mantine-color-scheme="light"] ::-webkit-scrollbar-thumb:hover {
+    background: #d8b4fe;
+}
+
+/* Header backdrop blur fallback for older browsers */
+@supports not (backdrop-filter: blur(10px)) {
+    [data-mantine-color-scheme="dark"] .mantine-AppShell-header {
+        background-color: #0d0d12 !important;
+    }
+    [data-mantine-color-scheme="light"] .mantine-AppShell-header {
+        background-color: #faf9fb !important;
+    }
+}
+
+/* Drawer overlay */
+.mantine-Drawer-overlay {
+    backdrop-filter: blur(4px);
+}
+
+/* Select dropdown styling */
+.mantine-Select-dropdown {
+    border: 1px solid;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Select-dropdown {
+    border-color: #2d2d3a;
+    background-color: #1a1a24;
+}
+
+[data-mantine-color-scheme="light"] .mantine-Select-dropdown {
+    border-color: #e9e5f0;
+    background-color: #ffffff;
+}
+
+/* Button gradient hover for primary buttons */
+[data-mantine-color-scheme="dark"] .mantine-Button-root[data-variant="filled"]:hover {
+    background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%);
+}
+
+/* Selection highlight */
+::selection {
+    background-color: rgba(167, 139, 250, 0.3);
+}
+
+[data-mantine-color-scheme="light"] ::selection {
+    background-color: rgba(124, 58, 237, 0.2);
+}

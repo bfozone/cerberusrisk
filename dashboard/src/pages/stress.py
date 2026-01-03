@@ -4,6 +4,7 @@ import dash_mantine_components as dmc
 
 from src.api import get_stress_scenarios, compare_stress
 from src.components import data_table, bar_chart
+from src.components.charts import CHART_COLORS
 
 dash.register_page(__name__, path="/stress", name="Stress Testing")
 
@@ -31,8 +32,11 @@ def layout():
 @callback(
     Output("stress-results", "children"),
     Input("scenario-dropdown", "value"),
+    Input("color-scheme-store", "data"),
 )
-def update_stress_results(scenario_id):
+def update_stress_results(scenario_id, scheme):
+    scheme = scheme or "dark"
+
     if not scenario_id:
         return dmc.Text("Select a scenario to view results")
 
@@ -56,13 +60,13 @@ def update_stress_results(scenario_id):
         ],
         withBorder=True,
         padding="md",
-        radius="sm",
+        radius="xs",
     )
 
     # Comparison chart
     portfolio_names = [r["portfolio_name"] for r in results]
     pnl_values = [r["total_pnl_pct"] for r in results]
-    colors = ["#e74c3c" if v < 0 else "#27ae60" for v in pnl_values]
+    colors = [CHART_COLORS["negative"] if v < 0 else CHART_COLORS["positive"] for v in pnl_values]
 
     comparison_fig = bar_chart(
         portfolio_names,
@@ -71,6 +75,7 @@ def update_stress_results(scenario_id):
         text=[f"{v:+.1f}%" for v in pnl_values],
         height=300,
         yaxis_title="Portfolio P&L (%)",
+        scheme=scheme,
     )
 
     # Detailed breakdown for each portfolio
@@ -117,7 +122,7 @@ def update_stress_results(scenario_id):
                     ],
                     withBorder=True,
                     padding="sm",
-                    radius="sm",
+                    radius="xs",
                 ),
                 span={"base": 12, "sm": 6, "lg": 4},
             )
