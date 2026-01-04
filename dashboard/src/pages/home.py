@@ -4,7 +4,7 @@ import dash_mantine_components as dmc
 import plotly.graph_objects as go
 
 from src.api import get_portfolios, get_portfolio_risk
-from src.components import portfolio_card
+from src.components import portfolio_card, empty_figure
 from src.components.charts import CHART_COLORS, chart_layout
 
 dash.register_page(__name__, path="/", name="Home")
@@ -23,7 +23,7 @@ def layout():
             dmc.Title("Portfolio Overview", order=2),
             dmc.Grid(cards, gutter="md"),
             dmc.Title("Risk Comparison", order=4, mt="lg"),
-            dcc.Graph(id="home-risk-chart", config={"displayModeBar": False}),
+            dcc.Graph(id="home-risk-chart", figure=empty_figure(height=400), config={"displayModeBar": False}),
         ],
         gap="md",
     )
@@ -54,12 +54,14 @@ def update_risk_chart(scheme):
             x=names,
             y=var_values,
             marker_color=CHART_COLORS["warning"],
+            marker_cornerradius=6,
         ))
         fig.add_trace(go.Bar(
             name="Volatility",
             x=names,
             y=vol_values,
             marker_color=CHART_COLORS["primary"],
+            marker_cornerradius=6,
         ))
 
         fig.update_layout(

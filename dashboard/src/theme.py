@@ -178,7 +178,7 @@ theme.update({
     "primaryColor": "violet",
     "fontFamily": "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
     "fontFamilyMonospace": "'JetBrains Mono', 'Fira Code', monospace",
-    "defaultRadius": "md",
+    "defaultRadius": "10px",
     "colors": {
         "violet": PURPLE_SCALE,
         "cyan": CYAN_SCALE,

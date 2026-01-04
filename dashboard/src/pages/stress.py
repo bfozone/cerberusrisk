@@ -60,7 +60,6 @@ def update_stress_results(scenario_id, scheme):
         ],
         withBorder=True,
         padding="md",
-        radius="xs",
     )
 
     # Comparison chart
@@ -122,7 +121,6 @@ def update_stress_results(scenario_id, scheme):
                     ],
                     withBorder=True,
                     padding="sm",
-                    radius="xs",
                 ),
                 span={"base": 12, "sm": 6, "lg": 4},
             )

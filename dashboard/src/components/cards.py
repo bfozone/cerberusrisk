@@ -10,7 +10,6 @@ def metric_card(label: str, value: str, color: str | None = None) -> dmc.Card:
         ],
         withBorder=True,
         padding="md",
-        radius="xs",
         style={"textAlign": "center"},
     )
 
@@ -63,6 +62,5 @@ def portfolio_card(portfolio: dict, risk: dict | None) -> dmc.Card:
         ],
         withBorder=True,
         padding="md",
-        radius="xs",
         h="100%",
     )

@@ -1,5 +1,5 @@
 import dash
-from dash import dcc, callback, Output, Input
+from dash import dcc, callback, Output, Input, no_update
 import dash_mantine_components as dmc
 
 from src.api import (
@@ -9,7 +9,7 @@ from src.api import (
     get_risk_contributions,
     get_correlation,
 )
-from src.components import metric_card, data_table, bar_chart, pie_chart, heatmap_chart
+from src.components import metric_card, data_table, bar_chart, pie_chart, heatmap_chart, empty_figure
 from src.components.charts import CHART_COLORS
 
 dash.register_page(__name__, path_template="/portfolio/<portfolio_id>", name="Portfolio")
@@ -91,7 +91,7 @@ def layout(portfolio_id=None):
                     dmc.GridCol(
                         dmc.Stack([
                             dmc.Title("Allocation", order=5),
-                            dcc.Graph(id="portfolio-pie-chart", config={"displayModeBar": False}),
+                            dcc.Graph(id="portfolio-pie-chart", figure=empty_figure(), config={"displayModeBar": False}),
                         ], gap="sm"),
                         span={"base": 12, "md": 5},
                     ),
@@ -107,14 +107,14 @@ def layout(portfolio_id=None):
                     dmc.GridCol(
                         dmc.Stack([
                             dmc.Title("Risk Contribution", order=5),
-                            dcc.Graph(id="portfolio-contrib-chart", config={"displayModeBar": False}),
+                            dcc.Graph(id="portfolio-contrib-chart", figure=empty_figure(), config={"displayModeBar": False}),
                         ], gap="sm"),
                         span={"base": 12, "md": 6},
                     ),
                     dmc.GridCol(
                         dmc.Stack([
                             dmc.Title("Correlation Matrix", order=5),
-                            dcc.Graph(id="portfolio-corr-chart", config={"displayModeBar": False}),
+                            dcc.Graph(id="portfolio-corr-chart", figure=empty_figure(), config={"displayModeBar": False}),
                         ], gap="sm"),
                         span={"base": 12, "md": 6},
                     ),
@@ -134,11 +134,11 @@ def layout(portfolio_id=None):
 def update_pie_chart(scheme, portfolio_id):
     scheme = scheme or "dark"
     if not portfolio_id:
-        return {}
+        return no_update
 
     portfolio = get_portfolio(portfolio_id)
     if not portfolio:
-        return {}
+        return no_update
 
     labels = [p["ticker"] for p in portfolio["positions"]]
     values = [p["weight"] for p in portfolio["positions"]]
@@ -153,11 +153,11 @@ def update_pie_chart(scheme, portfolio_id):
 def update_contrib_chart(scheme, portfolio_id):
     scheme = scheme or "dark"
     if not portfolio_id:
-        return {}
+        return no_update
 
     contributions = get_risk_contributions(portfolio_id)
     if not contributions:
-        return {}
+        return no_update
 
     tickers = [c["ticker"] for c in contributions]
     pct_contrib = [c["pct_contribution"] for c in contributions]
@@ -180,11 +180,11 @@ def update_contrib_chart(scheme, portfolio_id):
 def update_corr_chart(scheme, portfolio_id):
     scheme = scheme or "dark"
     if not portfolio_id:
-        return {}
+        return no_update
 
     correlation = get_correlation(portfolio_id)
     if not correlation or not correlation["matrix"]:
-        return {}
+        return no_update
 
     return heatmap_chart(
         correlation["matrix"],

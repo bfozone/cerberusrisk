@@ -87,6 +87,21 @@ THEME_SETTINGS = {
 }
 
 
+def empty_figure(height: int = 350, scheme: str = "dark") -> go.Figure:
+    """Return an empty figure with no visible axes - use as placeholder."""
+    settings = THEME_SETTINGS.get(scheme, THEME_SETTINGS["dark"])
+    fig = go.Figure()
+    fig.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        height=height,
+        margin=dict(l=0, r=0, t=0, b=0),
+        xaxis=dict(visible=False),
+        yaxis=dict(visible=False),
+    )
+    return fig
+
+
 def chart_layout(height: int = 350, scheme: str = "dark", **kwargs) -> dict:
     """Common layout for charts with theme support."""
     settings = THEME_SETTINGS.get(scheme, THEME_SETTINGS["dark"])
@@ -155,6 +170,7 @@ def bar_chart(
                 y=y,
                 marker_color=color or CHART_COLORS["primary"],
                 marker_line_width=0,
+                marker_cornerradius=6,
                 text=text,
                 textposition="outside" if text else None,
                 textfont={"color": settings["font_color"], "size": 11},
@@ -207,7 +223,7 @@ def heatmap_chart(
     zmax: float | None = None,
     show_text: bool = True,
 ) -> go.Figure:
-    """Create a styled heatmap with auto-contrasting text.
+    """Create a styled heatmap with auto-contrasting text and cell gaps.
 
     colorscale options: 'purpleIntensity', 'cyanIntensity', 'heat', 'cool', 'lossGain', 'performance'
     """
@@ -232,7 +248,10 @@ def heatmap_chart(
             colorscale=resolved_scale,
             zmin=zmin,
             zmax=zmax,
+            xgap=3,
+            ygap=3,
             hovertemplate="<b>%{x}</b> vs <b>%{y}</b><br>Value: %{z:.2f}<extra></extra>",
+            showscale=False,
         )
     )
 
@@ -267,7 +286,7 @@ def correlation_heatmap(
     scheme: str = "dark",
     show_text: bool = True,
 ) -> go.Figure:
-    """Create a correlation matrix heatmap with diverging colors and auto-contrasting text."""
+    """Create a correlation matrix heatmap with diverging colors and cell gaps."""
     settings = THEME_SETTINGS.get(scheme, THEME_SETTINGS["dark"])
 
     # Diverging scale centered on 0
@@ -286,7 +305,10 @@ def correlation_heatmap(
             zmid=0,
             zmin=-1,
             zmax=1,
+            xgap=3,
+            ygap=3,
             hovertemplate="<b>%{x}</b> vs <b>%{y}</b><br>Correlation: %{z:.2f}<extra></extra>",
+            showscale=False,
         )
     )
 
@@ -294,8 +316,8 @@ def correlation_heatmap(
     if show_text:
         text_colors = _get_text_colors(z, -1, 1, diverging_scale)
         annotations = []
-        for i, row in enumerate(z):
-            for j, val in enumerate(row):
+        for i, row_data in enumerate(z):
+            for j, val in enumerate(row_data):
                 annotations.append(
                     dict(
                         x=x[j],
