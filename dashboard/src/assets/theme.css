@@ -14,6 +14,201 @@
     transition: none !important;
 }
 
+/* ===== NAVBAR INNER WRAPPER - GPU ACCELERATED ===== */
+.navbar-inner {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    will-change: transform, opacity;
+    transition:
+        transform 250ms cubic-bezier(0.4, 0, 0.2, 1),
+        opacity 250ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Nav labels - animate on collapse */
+.nav-label {
+    display: inline-block;
+    transition:
+        opacity 200ms cubic-bezier(0.4, 0, 0.2, 1),
+        transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
+    white-space: nowrap;
+}
+
+/* Logo text specific styling */
+.logo-text {
+    font-weight: 600;
+    font-size: 1.1rem;
+}
+
+/* ===== ICON ALIGNMENT (consistent for both states) ===== */
+
+/* Logo icon container - match NavLink icon alignment */
+.navbar-header {
+    padding-left: 0.75rem;
+    padding-right: 1rem;
+}
+
+.navbar-header > svg,
+.navbar-header > .iconify {
+    width: 24px;
+    flex-shrink: 0;
+}
+
+/* NavLink icon alignment */
+.mantine-NavLink-root {
+    padding-left: 0.75rem;
+    padding-right: 1rem;
+}
+
+.mantine-NavLink-section[data-position="left"] {
+    width: 24px;
+    min-width: 24px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+/* Center the 18px icon within 24px container */
+.mantine-NavLink-section[data-position="left"] svg,
+.mantine-NavLink-section[data-position="left"] .iconify {
+    margin: 0 auto;
+}
+
+/* ===== DESKTOP COLLAPSED STATE ===== */
+[data-navbar-collapsed="true"] .nav-label {
+    opacity: 0;
+    transform: translateX(-8px);
+    pointer-events: none;
+    width: 0;
+    overflow: hidden;
+}
+
+[data-navbar-collapsed="true"] .navbar-header {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+}
+
+[data-navbar-collapsed="true"] .navbar-footer {
+    justify-content: center;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding-left: 0;
+    padding-right: 0;
+}
+
+/* Center the nav links when collapsed */
+[data-navbar-collapsed="true"] .mantine-NavLink-root {
+    justify-content: center;
+    padding: 0.625rem;
+}
+
+[data-navbar-collapsed="true"] .mantine-NavLink-body {
+    display: none;
+}
+
+[data-navbar-collapsed="true"] .mantine-NavLink-section {
+    margin: 0;
+}
+
+/* Center icons in the nav stack */
+[data-navbar-collapsed="true"] #nav-links {
+    align-items: center;
+    padding-left: 0;
+    padding-right: 0;
+}
+
+[data-navbar-collapsed="true"] #nav-links .mantine-Stack-root {
+    align-items: center;
+}
+
+/* Hide nested children when collapsed */
+[data-navbar-collapsed="true"] .mantine-NavLink-children {
+    display: none;
+}
+
+/* ===== DESKTOP EXPANDED STATE ===== */
+[data-navbar-collapsed="false"] .navbar-header {
+    padding-left: 0.75rem;
+}
+
+[data-navbar-collapsed="false"] .mantine-NavLink-root {
+    padding-left: 0.75rem;
+}
+
+/* Ensure gap between icon and text matches */
+[data-navbar-collapsed="false"] .navbar-header {
+    gap: 0.625rem;
+}
+
+[data-navbar-collapsed="false"] .mantine-NavLink-section[data-position="left"] {
+    margin-right: 0.625rem;
+}
+
+/* Show tooltips only when collapsed */
+[data-navbar-collapsed="false"] .nav-tooltip .mantine-Tooltip-tooltip {
+    display: none !important;
+}
+
+/* ===== DESKTOP EXPANDED STATE ===== */
+[data-navbar-collapsed="false"] .nav-label {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+/* ===== MOBILE SLIDE ANIMATION ===== */
+@media (max-width: 48em) {
+    .mantine-AppShell-navbar {
+        z-index: 200;
+        box-shadow: 4px 0 24px rgba(0, 0, 0, 0.3);
+        transition: transform 250ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+}
+
+/* ===== MANTINE APPSHELL TRANSITIONS ===== */
+.mantine-AppShell-navbar {
+    transition: transform 250ms cubic-bezier(0.4, 0, 0.2, 1),
+                width 250ms cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: transform, width;
+}
+
+.mantine-AppShell-main {
+    transition: padding-left 250ms cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: padding-left;
+}
+
+/* ===== MOBILE FAB BUTTON ===== */
+.mantine-Affix-root {
+    z-index: 1000;
+}
+
+#mobile-open {
+    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+#mobile-open:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 16px rgba(139, 92, 246, 0.5);
+}
+
+#mobile-open:active {
+    transform: scale(0.95);
+}
+
+/* ===== ACCESSIBILITY ===== */
+@media (prefers-reduced-motion: reduce) {
+    .navbar-inner,
+    .navbar-inner *,
+    .nav-label,
+    .mantine-AppShell-navbar,
+    .mantine-AppShell-main {
+        transition: none !important;
+    }
+}
+
+/* ===== CARD STYLES ===== */
 /* Light mode card shadows */
 [data-mantine-color-scheme="light"] .mantine-Card-root {
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08),
@@ -44,12 +239,11 @@
     transform: translateY(-2px);
 }
 
-/* Table row hover enhancement */
+/* ===== TABLE STYLES ===== */
 .mantine-Table-tr {
     transition: background-color 0.15s ease;
 }
 
-/* Tabular numbers for proper alignment in tables */
 .mantine-Table-root {
     font-variant-numeric: tabular-nums;
 }
@@ -59,32 +253,7 @@
     font-feature-settings: "tnum" 1;
 }
 
-/* Navbar styling */
-.mantine-AppShell-navbar {
-    transition: transform 0.2s ease, width 0.2s ease;
-}
-
-/* Mobile FAB button */
-.mantine-Affix-root {
-    z-index: 1000;
-}
-
-/* FAB shadow and hover */
-#mobile-open {
-    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-#mobile-open:hover {
-    transform: scale(1.05);
-    box-shadow: 0 6px 16px rgba(139, 92, 246, 0.5);
-}
-
-#mobile-open:active {
-    transform: scale(0.95);
-}
-
-/* NavLink hover and active states */
+/* ===== NAVLINK STYLES ===== */
 .mantine-NavLink-root {
     transition: background-color 0.15s ease;
     border-radius: var(--mantine-radius-sm);
@@ -107,7 +276,7 @@
     background-color: rgba(124, 58, 237, 0.12);
 }
 
-/* Focus ring styling for accessibility - violet accent */
+/* ===== FOCUS STYLES ===== */
 .mantine-focus-auto:focus-visible {
     outline: 2px solid #a78bfa;
     outline-offset: 2px;
@@ -117,7 +286,6 @@
     outline-color: #7c3aed;
 }
 
-/* Button focus state */
 .mantine-Button-root:focus-visible,
 .mantine-ActionIcon-root:focus-visible {
     outline: 2px solid #a78bfa;
@@ -129,7 +297,7 @@
     outline-color: #7c3aed;
 }
 
-/* Smooth scrollbar for webkit browsers */
+/* ===== SCROLLBAR ===== */
 ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
@@ -157,17 +325,7 @@
     background: #d8b4fe;
 }
 
-/* Navbar fallback for older browsers */
-@supports not (backdrop-filter: blur(10px)) {
-    [data-mantine-color-scheme="dark"] .mantine-AppShell-navbar {
-        background-color: #1a1a24 !important;
-    }
-    [data-mantine-color-scheme="light"] .mantine-AppShell-navbar {
-        background-color: #ffffff !important;
-    }
-}
-
-/* Select dropdown styling */
+/* ===== SELECT DROPDOWN ===== */
 .mantine-Select-dropdown {
     border: 1px solid;
 }
@@ -182,16 +340,26 @@
     background-color: #ffffff;
 }
 
-/* Button gradient hover for primary buttons */
+/* ===== BUTTON GRADIENT ===== */
 [data-mantine-color-scheme="dark"] .mantine-Button-root[data-variant="filled"]:hover {
     background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%);
 }
 
-/* Selection highlight */
+/* ===== SELECTION HIGHLIGHT ===== */
 ::selection {
     background-color: rgba(167, 139, 250, 0.3);
 }
 
 [data-mantine-color-scheme="light"] ::selection {
     background-color: rgba(124, 58, 237, 0.2);
+}
+
+/* ===== FALLBACKS ===== */
+@supports not (backdrop-filter: blur(10px)) {
+    [data-mantine-color-scheme="dark"] .mantine-AppShell-navbar {
+        background-color: #1a1a24 !important;
+    }
+    [data-mantine-color-scheme="light"] .mantine-AppShell-navbar {
+        background-color: #ffffff !important;
+    }
 }

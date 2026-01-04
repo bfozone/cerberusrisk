@@ -1,10 +1,11 @@
 import dash
-from dash import Dash, dcc, callback, Output, Input, State, clientside_callback
+from dash import Dash, dcc, html, callback, Output, Input, State, clientside_callback
 import dash_mantine_components as dmc
 from dash_iconify import DashIconify
 
 from src.theme import theme, PALETTE_DARK, PALETTE_LIGHT
 from src.api import get_portfolios
+from src.components.icons import Icon
 
 app = Dash(
     __name__,
@@ -12,35 +13,28 @@ app = Dash(
     suppress_callback_exceptions=True,
     assets_folder="assets",
 )
+app._favicon = "favicon.svg"
 server = app.server
 
 
-def nav_link(label, href, icon, pathname, collapsed=False):
-    """Single reusable nav link component."""
+def nav_link(label, href, icon_name, pathname, color="#e4e4e7"):
+    """Nav link with label that fades via CSS when collapsed."""
     active = pathname == href if href == "/" else pathname.startswith(href)
-    if collapsed:
-        return dmc.Tooltip(
-            dmc.ActionIcon(
-                DashIconify(icon=icon, width=20),
-                component="a",
-                href=href,
-                variant="light" if active else "subtle",
-                color="violet" if active else "gray",
-                size="lg",
-            ),
-            label=label,
-            position="right",
-        )
-    return dmc.NavLink(
+    return dmc.Tooltip(
+        dmc.NavLink(
+            label=html.Span(label, className="nav-label"),
+            href=href,
+            leftSection=Icon(icon_name, size=18, color=color),
+            active=active,
+            variant="light",
+        ),
         label=label,
-        href=href,
-        leftSection=DashIconify(icon=icon, width=18),
-        active=active,
-        variant="light",
+        position="right",
+        className="nav-tooltip",
     )
 
 
-# Theme toggle button
+# Theme toggle button (dynamic icon - keep DashIconify)
 theme_toggle = dmc.ActionIcon(
     id="theme-toggle",
     variant="subtle",
@@ -48,7 +42,7 @@ theme_toggle = dmc.ActionIcon(
     children=DashIconify(icon="radix-icons:sun", width=20, id="theme-icon"),
 )
 
-# Desktop collapse toggle (inside navbar)
+# Desktop collapse toggle (dynamic icon - keep DashIconify)
 collapse_toggle = dmc.ActionIcon(
     id="collapse-toggle",
     variant="subtle",
@@ -57,19 +51,17 @@ collapse_toggle = dmc.ActionIcon(
     visibleFrom="sm",
 )
 
-# Mobile close button (inside navbar, closes it)
+# Mobile close button (static - use local icon)
 mobile_close = dmc.ActionIcon(
-    DashIconify(icon="radix-icons:cross-1", width=20),
     id="mobile-close",
     variant="subtle",
     size="lg",
     hiddenFrom="sm",
 )
 
-# Floating mobile open button (outside navbar, visible when closed)
+# Floating mobile FAB (static - use local icon)
 mobile_fab = dmc.Affix(
     dmc.ActionIcon(
-        DashIconify(icon="radix-icons:hamburger-menu", width=22),
         id="mobile-open",
         variant="filled",
         size="xl",
@@ -81,20 +73,18 @@ mobile_fab = dmc.Affix(
     id="mobile-fab",
 )
 
-# Navbar component
+# Navbar with inner wrapper for animations
 navbar = dmc.AppShellNavbar(
     id="app-navbar",
-    children=dmc.Stack(
-        [
+    children=html.Div(
+        className="navbar-inner",
+        children=[
             # Header
             dmc.Group(
-                [
-                    DashIconify(icon="gravity-ui:nodes-down", width=24, id="logo-icon"),
-                    dmc.Title("CerberusRisk", order=4, id="app-title"),
-                ],
+                id="navbar-header",
                 gap="xs",
                 p="md",
-                id="navbar-header",
+                className="navbar-header",
             ),
             dmc.Divider(),
             # Navigation links
@@ -108,14 +98,13 @@ navbar = dmc.AppShellNavbar(
                 [theme_toggle, collapse_toggle, mobile_close],
                 p="md",
                 justify="space-between",
-                id="navbar-footer",
+                className="navbar-footer",
             ),
         ],
-        gap=0,
-        h="100%",
     ),
 )
 
+# Main layout with data attributes on wrapper
 app.layout = dmc.MantineProvider(
     id="mantine-provider",
     theme=theme,
@@ -125,26 +114,33 @@ app.layout = dmc.MantineProvider(
         dcc.Store(id="color-scheme-store", storage_type="local", data="dark"),
         dcc.Store(id="mobile-opened", storage_type="memory", data=False),
         dcc.Store(id="desktop-collapsed", storage_type="local", data=False),
-        mobile_fab,
-        dmc.AppShell(
-            id="app-shell",
+        # Wrapper with data attributes for CSS animations
+        html.Div(
+            id="app-wrapper",
+            **{"data-navbar-collapsed": "false", "data-navbar-mobile-open": "false"},
             children=[
-                navbar,
-                dmc.AppShellMain(
-                    dmc.Container(
-                        dash.page_container,
-                        size="xl",
-                        py="md",
-                    ),
-                    id="app-main",
+                mobile_fab,
+                dmc.AppShell(
+                    id="app-shell",
+                    children=[
+                        navbar,
+                        dmc.AppShellMain(
+                            dmc.Container(
+                                dash.page_container,
+                                size="xl",
+                                py="md",
+                            ),
+                            id="app-main",
+                        ),
+                    ],
+                    navbar={
+                        "width": {"base": 240, "sm": 240},
+                        "breakpoint": "sm",
+                        "collapsed": {"mobile": True, "desktop": False},
+                    },
+                    padding="md",
                 ),
             ],
-            navbar={
-                "width": 240,
-                "breakpoint": "sm",
-                "collapsed": {"mobile": True, "desktop": False},
-            },
-            padding="md",
         ),
     ],
 )
@@ -206,10 +202,20 @@ clientside_callback(
     prevent_initial_call=True,
 )
 
-# Update navbar config based on mobile/desktop state
+# Update wrapper data attributes and AppShell navbar config
 clientside_callback(
     """
     function(mobileOpened, desktopCollapsed) {
+        // Update data attributes on wrapper for CSS (with safety check)
+        setTimeout(function() {
+            var wrapper = document.getElementById('app-wrapper');
+            if (wrapper) {
+                wrapper.setAttribute('data-navbar-collapsed', String(desktopCollapsed));
+                wrapper.setAttribute('data-navbar-mobile-open', String(mobileOpened));
+            }
+        }, 0);
+
+        // Return navbar config for Mantine
         return {
             width: desktopCollapsed ? 70 : 240,
             breakpoint: 'sm',
@@ -229,7 +235,12 @@ clientside_callback(
 clientside_callback(
     """
     function(mobileOpened) {
-        return { display: mobileOpened ? 'none' : 'block' };
+        return {
+            opacity: mobileOpened ? 0 : 1,
+            transform: mobileOpened ? 'scale(0.8)' : 'scale(1)',
+            pointerEvents: mobileOpened ? 'none' : 'auto',
+            transition: 'opacity 0.25s ease, transform 0.25s ease'
+        };
     }
     """,
     Output("mobile-fab", "style"),
@@ -257,12 +268,15 @@ def update_theme_icon(scheme):
     return "radix-icons:moon" if scheme == "dark" else "radix-icons:sun"
 
 
-# Update navbar and shell styles
+# Update colors and icons based on theme
 @callback(
     Output("app-navbar", "style"),
     Output("app-shell", "style"),
     Output("app-main", "style"),
-    Output("logo-icon", "color"),
+    Output("navbar-header", "children"),
+    Output("mobile-close", "children"),
+    Output("mobile-open", "children"),
+    Output("app-title", "style"),
     Output("theme-toggle", "color"),
     Output("collapse-toggle", "color"),
     Output("mobile-close", "color"),
@@ -276,108 +290,64 @@ def update_styles(scheme):
     }
     shell_style = {"backgroundColor": palette["background"]}
     main_style = {"backgroundColor": palette["background"]}
+    title_style = {"color": palette["primary"], "fontWeight": 600, "fontSize": "1.1rem"}
+
+    # Header with logo
+    header_children = [
+        Icon("nodes-down", size=24, color=palette["primary"]),
+        html.Span("CerberusRisk", className="nav-label logo-text", id="app-title",
+                  style=title_style),
+    ]
+
+    # Mobile button icons
+    close_icon = Icon("cross-1", size=20, color=palette["text"])
+    open_icon = Icon("hamburger-menu", size=22, color="#ffffff")
+
     return (
         navbar_style,
         shell_style,
         main_style,
-        palette["primary"],
+        header_children,
+        close_icon,
+        open_icon,
+        title_style,
         palette["text"],
         palette["text"],
         palette["text"],
-    )
-
-
-# Update navbar header visibility when collapsed
-@callback(
-    Output("navbar-header", "children"),
-    Output("navbar-header", "justify"),
-    Input("desktop-collapsed", "data"),
-    Input("color-scheme-store", "data"),
-)
-def update_navbar_header(collapsed, scheme):
-    palette = PALETTE_DARK if scheme == "dark" else PALETTE_LIGHT
-    if collapsed:
-        return (
-            DashIconify(icon="gravity-ui:nodes-down", width=24, id="logo-icon", color=palette["primary"]),
-            "center",
-        )
-    return (
-        [
-            DashIconify(icon="gravity-ui:nodes-down", width=24, id="logo-icon", color=palette["primary"]),
-            dmc.Title("CerberusRisk", order=4, c=palette["primary"]),
-        ],
-        "flex-start",
     )
 
 
 # Update navigation links
 @callback(
     Output("nav-links", "children"),
-    Input("color-scheme-store", "data"),
     Input("url", "pathname"),
-    Input("desktop-collapsed", "data"),
+    Input("color-scheme-store", "data"),
 )
-def update_nav(scheme, pathname, collapsed):
+def update_nav(pathname, scheme):
     pathname = pathname or "/"
     portfolios = get_portfolios()
+    palette = PALETTE_DARK if scheme == "dark" else PALETTE_LIGHT
+    icon_color = palette["text"]
 
-    if collapsed:
-        # Collapsed: icons only with tooltips, centered
-        return dmc.Stack(
-            [
-                nav_link("Home", "/", "radix-icons:home", pathname, collapsed=True),
-                nav_link("Portfolios", "/portfolio/1", "radix-icons:layers", pathname, collapsed=True),
-                nav_link("Stress Test", "/stress", "radix-icons:mix", pathname, collapsed=True),
-            ],
-            align="center",
-            gap="xs",
-        )
-
-    # Expanded: full nav with nested portfolios
     portfolio_links = [
-        nav_link(p["name"], f"/portfolio/{p['id']}", "radix-icons:dot-filled", pathname)
+        nav_link(p["name"], f"/portfolio/{p['id']}", "dot-filled", pathname, icon_color)
         for p in portfolios
     ]
 
     return [
-        nav_link("Home", "/", "radix-icons:home", pathname),
+        nav_link("Home", "/", "home", pathname, icon_color),
         dmc.NavLink(
-            label="Portfolios",
-            leftSection=DashIconify(icon="radix-icons:layers", width=18),
-            childrenOffset=24,
+            label=html.Span("Portfolios", className="nav-label"),
+            leftSection=Icon("layers", size=18, color=icon_color),
+            childrenOffset=28,
             opened=pathname.startswith("/portfolio"),
             variant="light",
             children=portfolio_links if portfolio_links else [
                 dmc.Text("No portfolios", size="sm", c="dimmed", p="xs")
             ],
         ),
-        nav_link("Stress Test", "/stress", "radix-icons:mix", pathname),
+        nav_link("Stress Test", "/stress", "mix", pathname, icon_color),
     ]
-
-
-# Update footer layout when collapsed
-@callback(
-    Output("navbar-footer", "children"),
-    Output("navbar-footer", "justify"),
-    Output("navbar-footer", "style"),
-    Input("desktop-collapsed", "data"),
-)
-def update_navbar_footer(collapsed):
-    if collapsed:
-        return (
-            dmc.Stack(
-                [theme_toggle, collapse_toggle, mobile_close],
-                gap="xs",
-                align="center",
-            ),
-            "center",
-            {"padding": "8px"},
-        )
-    return (
-        [theme_toggle, collapse_toggle, mobile_close],
-        "space-between",
-        {"padding": "16px"},
-    )
 
 
 if __name__ == "__main__":
