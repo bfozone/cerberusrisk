@@ -59,10 +59,32 @@
     font-feature-settings: "tnum" 1;
 }
 
-/* Nav link hover effect */
-.mantine-Anchor-root {
-    transition: color 0.15s ease,
-                border-color 0.15s ease;
+/* Navbar styling */
+.mantine-AppShell-navbar {
+    transition: transform 0.2s ease, width 0.2s ease;
+}
+
+/* NavLink hover and active states */
+.mantine-NavLink-root {
+    transition: background-color 0.15s ease;
+    border-radius: var(--mantine-radius-sm);
+    margin: 2px 0;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-NavLink-root:hover {
+    background-color: rgba(167, 139, 250, 0.1);
+}
+
+[data-mantine-color-scheme="light"] .mantine-NavLink-root:hover {
+    background-color: rgba(124, 58, 237, 0.08);
+}
+
+[data-mantine-color-scheme="dark"] .mantine-NavLink-root[data-active] {
+    background-color: rgba(167, 139, 250, 0.15);
+}
+
+[data-mantine-color-scheme="light"] .mantine-NavLink-root[data-active] {
+    background-color: rgba(124, 58, 237, 0.12);
 }
 
 /* Focus ring styling for accessibility - violet accent */
@@ -115,19 +137,14 @@
     background: #d8b4fe;
 }
 
-/* Header backdrop blur fallback for older browsers */
+/* Navbar fallback for older browsers */
 @supports not (backdrop-filter: blur(10px)) {
-    [data-mantine-color-scheme="dark"] .mantine-AppShell-header {
-        background-color: #0d0d12 !important;
+    [data-mantine-color-scheme="dark"] .mantine-AppShell-navbar {
+        background-color: #1a1a24 !important;
     }
-    [data-mantine-color-scheme="light"] .mantine-AppShell-header {
-        background-color: #faf9fb !important;
+    [data-mantine-color-scheme="light"] .mantine-AppShell-navbar {
+        background-color: #ffffff !important;
     }
-}
-
-/* Drawer overlay */
-.mantine-Drawer-overlay {
-    backdrop-filter: blur(4px);
 }
 
 /* Select dropdown styling */
