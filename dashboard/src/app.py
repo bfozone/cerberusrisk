@@ -276,7 +276,6 @@ def update_theme_icon(scheme):
     Output("navbar-header", "children"),
     Output("mobile-close", "children"),
     Output("mobile-open", "children"),
-    Output("app-title", "style"),
     Output("theme-toggle", "color"),
     Output("collapse-toggle", "color"),
     Output("mobile-close", "color"),
@@ -295,8 +294,7 @@ def update_styles(scheme):
     # Header with logo
     header_children = [
         Icon("nodes-down", size=24, color=palette["primary"]),
-        html.Span("CerberusRisk", className="nav-label logo-text", id="app-title",
-                  style=title_style),
+        html.Span("CerberusRisk", className="nav-label logo-text", style=title_style),
     ]
 
     # Mobile button icons
@@ -310,7 +308,6 @@ def update_styles(scheme):
         header_children,
         close_icon,
         open_icon,
-        title_style,
         palette["text"],
         palette["text"],
         palette["text"],
