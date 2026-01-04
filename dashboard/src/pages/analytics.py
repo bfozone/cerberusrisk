@@ -21,6 +21,7 @@ from src.api import (
     run_what_if,
     get_monte_carlo,
     get_factor_exposures,
+    get_performance,
 )
 from src.components import (
     metric_card,
@@ -38,6 +39,51 @@ from src.components import (
 from src.components.charts import CHART_COLORS
 
 dash.register_page(__name__, path="/analytics", name="Portfolio Analytics")
+
+
+# ============================================================================
+# HELPER COMPONENTS (DRY)
+# ============================================================================
+
+
+def metric_cards_row(metrics: list[tuple[str, str, str]], span: int = 2) -> dmc.Grid:
+    """Render a row of metric cards. Each tuple: (name, value, color)."""
+    return dmc.Grid(
+        [dmc.GridCol(metric_card(n, v, c), span={"base": 6, "sm": span}) for n, v, c in metrics],
+        gutter="xs",
+    )
+
+
+def comparison_row(
+    portfolio_val: float,
+    benchmark_val: float | None,
+    label: str,
+    unit: str = "%",
+    invert_delta: bool = False,
+) -> dmc.Grid:
+    """Render portfolio vs benchmark comparison cards."""
+    if benchmark_val is not None:
+        delta = portfolio_val - benchmark_val
+        # For metrics like VaR where lower is better, invert the color logic
+        delta_color = "green" if (delta < 0 if invert_delta else delta > 0) else "red"
+        return dmc.Grid(
+            [
+                dmc.GridCol(metric_card(f"Portfolio", f"{portfolio_val}{unit}", "blue"), span={"base": 6, "sm": 4}),
+                dmc.GridCol(metric_card(f"Benchmark", f"{benchmark_val}{unit}", "gray"), span={"base": 6, "sm": 4}),
+                dmc.GridCol(metric_card("Delta", f"{delta:+.2f}{unit}", delta_color), span={"base": 6, "sm": 4}),
+            ],
+            gutter="xs",
+        )
+    else:
+        return dmc.Grid(
+            [dmc.GridCol(metric_card(label, f"{portfolio_val}{unit}", "blue"), span=12)],
+            gutter="xs",
+        )
+
+
+# ============================================================================
+# LAYOUT
+# ============================================================================
 
 
 def layout():
@@ -71,31 +117,31 @@ def layout():
                 gap="lg",
             ),
 
-            # Tabs
+            # 7 Tabs
             dmc.Tabs(
                 id="analytics-tabs",
-                value="risk",
+                value="summary",
                 children=[
                     dmc.TabsList([
-                        dmc.TabsTab("Risk Metrics", value="risk"),
-                        dmc.TabsTab("Stress Testing", value="stress"),
-                        dmc.TabsTab("Time Series", value="timeseries"),
-                        dmc.TabsTab("Distribution", value="distribution"),
+                        dmc.TabsTab("Summary", value="summary"),
+                        dmc.TabsTab("Performance", value="performance"),
+                        dmc.TabsTab("Market Risk", value="market-risk"),
                         dmc.TabsTab("Factors", value="factors"),
                         dmc.TabsTab("Concentration", value="concentration"),
+                        dmc.TabsTab("Stress Testing", value="stress"),
                         dmc.TabsTab("What-If", value="whatif"),
                     ]),
-                    dmc.TabsPanel(html.Div(id="risk-content"), value="risk", pt="md"),
-                    dmc.TabsPanel(html.Div(id="stress-content"), value="stress", pt="md"),
-                    dmc.TabsPanel(html.Div(id="timeseries-content"), value="timeseries", pt="md"),
-                    dmc.TabsPanel(html.Div(id="distribution-content"), value="distribution", pt="md"),
+                    dmc.TabsPanel(html.Div(id="summary-content"), value="summary", pt="md"),
+                    dmc.TabsPanel(html.Div(id="performance-content"), value="performance", pt="md"),
+                    dmc.TabsPanel(html.Div(id="market-risk-content"), value="market-risk", pt="md"),
                     dmc.TabsPanel(html.Div(id="factors-content"), value="factors", pt="md"),
                     dmc.TabsPanel(html.Div(id="concentration-content"), value="concentration", pt="md"),
+                    dmc.TabsPanel(html.Div(id="stress-content"), value="stress", pt="md"),
                     dmc.TabsPanel(html.Div(id="whatif-content"), value="whatif", pt="md"),
                 ],
             ),
 
-            # Hidden stores for scenario selection
+            # Hidden stores
             dcc.Store(id="scenario-options-store", data=scenario_options),
         ],
         gap="md",
@@ -132,62 +178,16 @@ def update_data_info(portfolio_id):
 
 
 # ============================================================================
-# RISK METRICS TAB
+# SUMMARY TAB (NEW)
 # ============================================================================
-
-def render_risk_cards(risk):
-    """Render risk metric cards."""
-    if not risk:
-        return dmc.Text("Loading risk metrics...", c="dimmed")
-
-    metrics = [
-        ("VaR 95%", f"{risk['var_95']}%", "orange"),
-        ("VaR 99%", f"{risk['var_99']}%", "red"),
-        ("CVaR 95%", f"{risk['cvar_95']}%", "orange"),
-        ("Volatility", f"{risk['volatility']}%", "blue"),
-        ("Sharpe", f"{risk['sharpe']}", "green" if risk["sharpe"] > 0.5 else "gray"),
-        ("Max DD", f"{risk['max_drawdown']}%", "red"),
-    ]
-    return dmc.Grid(
-        [dmc.GridCol(metric_card(name, value, color), span={"base": 4, "sm": 2}) for name, value, color in metrics],
-        gutter="xs",
-    )
-
-
-def render_holdings_table(portfolio, value_data):
-    """Render holdings table."""
-    positions = value_data["positions"] if value_data else portfolio["positions"]
-    headers = ["Ticker", "Name", "Weight", "Price", "Change"]
-    rows = []
-    row_colors = []
-
-    for pos in positions:
-        price = pos.get("price", "—")
-        change = pos.get("change_pct")
-        change_color = None
-        change_str = "—"
-        if change is not None:
-            change_color = "green" if change >= 0 else "red"
-            change_str = f"{change:+.2f}%"
-
-        rows.append([
-            pos["ticker"],
-            pos["name"],
-            f"{pos['weight']*100:.1f}%",
-            f"${price}" if isinstance(price, (int, float)) else price,
-            change_str,
-        ])
-        row_colors.append([None, None, None, None, change_color])
-
-    return data_table(headers, rows, row_colors)
 
 
 @callback(
-    Output("risk-content", "children"),
+    Output("summary-content", "children"),
     Input("selected-portfolio-store", "data"),
     Input("color-scheme-store", "data"),
 )
-def render_risk_tab(portfolio_id, scheme):
+def render_summary_tab(portfolio_id, scheme):
     scheme = scheme or "dark"
     if not portfolio_id:
         return dmc.Text("Select a portfolio")
@@ -196,16 +196,345 @@ def render_risk_tab(portfolio_id, scheme):
     if not portfolio:
         return dmc.Text("Portfolio not found")
 
-    value_data = get_portfolio_value(portfolio_id)
     risk = get_portfolio_risk(portfolio_id)
-    contributions = get_risk_contributions(portfolio_id)
-    correlation = get_correlation(portfolio_id)
+    perf = get_performance(portfolio_id)
+    beta_data = get_beta(portfolio_id)
 
-    # Generate all figures in one pass (no separate callbacks = no double-render)
+    # Extract portfolio and benchmark risk metrics
+    port_risk = risk["portfolio"] if risk else None
+    bench_risk = risk["benchmark"] if risk else None
+
+    # 6 headline KPIs
+    kpi_metrics = []
+    if perf:
+        period = perf["period_returns"]
+        ytd_color = "green" if period["ytd"] and period["ytd"] > 0 else "red" if period["ytd"] else "gray"
+        ann_color = "green" if period["annualized"] > 0 else "red"
+        kpi_metrics.extend([
+            ("YTD Return", f"{period['ytd']}%" if period["ytd"] is not None else "—", ytd_color),
+            ("Annualized", f"{period['annualized']}%", ann_color),
+        ])
+    if port_risk:
+        sharpe_color = "green" if port_risk["sharpe"] > 0.5 else "gray"
+        kpi_metrics.extend([
+            ("Sharpe", f"{port_risk['sharpe']}", sharpe_color),
+            ("VaR 95%", f"{port_risk['var_95']}%", "orange"),
+            ("Volatility", f"{port_risk['volatility']}%", "blue"),
+            ("Max DD", f"{port_risk['max_drawdown']}%", "red"),
+        ])
+
+    kpi_cards = metric_cards_row(kpi_metrics, span=2) if kpi_metrics else dmc.Text("Loading...", c="dimmed")
+
+    # Allocation pie
     labels = [p["ticker"] for p in portfolio["positions"]]
     values = [p["weight"] for p in portfolio["positions"]]
     pie_fig = pie_chart(labels, values, scheme=scheme)
 
+    # Benchmark comparison section
+    bench_section = []
+    if perf:
+        bench = perf["benchmark"]
+        active_color = "green" if bench["active_return"] > 0 else "red"
+        bench_section.extend([
+            dmc.Text(f"Portfolio: {bench['portfolio_return']:+.2f}%", fw=500),
+            dmc.Text(f"Benchmark (SPY): {bench['benchmark_return']:+.2f}%", c="dimmed"),
+            dmc.Text(f"Active Return: {bench['active_return']:+.2f}%", c=active_color, fw=500),
+        ])
+
+    # Risk comparison
+    risk_section = []
+    if port_risk and bench_risk:
+        risk_section.extend([
+            dmc.Text(f"Vol: {port_risk['volatility']}% vs {bench_risk['volatility']}%", size="sm"),
+            dmc.Text(f"Sharpe: {port_risk['sharpe']} vs {bench_risk['sharpe']}", size="sm"),
+            dmc.Text(f"Max DD: {port_risk['max_drawdown']}% vs {bench_risk['max_drawdown']}%", size="sm"),
+        ])
+    if beta_data:
+        risk_section.append(dmc.Text(f"Beta: {beta_data['beta']}", size="sm"))
+
+    return dmc.Stack(
+        [
+            # Portfolio header
+            dmc.Title(portfolio["name"], order=3),
+            dmc.Text(
+                f"{len(portfolio['positions'])} positions | {portfolio['description']}",
+                c="dimmed",
+            ),
+
+            # Headline KPIs
+            dmc.Title("Key Metrics", order=5, mt="md"),
+            kpi_cards,
+
+            dmc.Divider(my="md"),
+
+            # Two-column layout
+            dmc.Grid(
+                [
+                    dmc.GridCol(
+                        dmc.Stack(
+                            [
+                                dmc.Title("Allocation", order=5),
+                                dcc.Graph(figure=pie_fig, config={"displayModeBar": False}),
+                            ],
+                            gap="sm",
+                        ),
+                        span={"base": 12, "md": 6},
+                    ),
+                    dmc.GridCol(
+                        dmc.Stack(
+                            [
+                                dmc.Title("vs Benchmark (SPY)", order=5),
+                                dmc.Stack(bench_section, gap="xs") if bench_section else None,
+                                dmc.Divider(my="sm"),
+                                dmc.Title("Risk Comparison", order=6),
+                                dmc.Stack(risk_section, gap="xs") if risk_section else None,
+                            ],
+                            gap="sm",
+                        ),
+                        span={"base": 12, "md": 6},
+                    ),
+                ],
+                gutter="md",
+            ),
+        ],
+        gap="sm",
+    )
+
+
+# ============================================================================
+# PERFORMANCE TAB
+# ============================================================================
+
+
+@callback(
+    Output("performance-content", "children"),
+    Input("selected-portfolio-store", "data"),
+    Input("color-scheme-store", "data"),
+)
+def render_performance_tab(portfolio_id, scheme):
+    scheme = scheme or "dark"
+    if not portfolio_id:
+        return dmc.Text("Select a portfolio")
+
+    perf = get_performance(portfolio_id)
+    if not perf:
+        return dmc.Text("Unable to load performance data", c="dimmed")
+
+    period = perf["period_returns"]
+    bench = perf["benchmark"]
+    ratios = perf["risk_adjusted"]
+    attrib = perf["attribution"]
+
+    # Period returns cards
+    period_cards = metric_cards_row([
+        ("MTD", f"{period['mtd']}%" if period["mtd"] is not None else "—", "blue"),
+        ("QTD", f"{period['qtd']}%" if period["qtd"] is not None else "—", "blue"),
+        ("YTD", f"{period['ytd']}%" if period["ytd"] is not None else "—", "blue"),
+        ("1 Year", f"{period['one_year']}%" if period["one_year"] is not None else "—", "blue"),
+        ("Total", f"{period['since_inception']}%", "green" if period["since_inception"] > 0 else "red"),
+        ("Annualized", f"{period['annualized']}%", "green" if period["annualized"] > 0 else "red"),
+    ], span=2)
+
+    # Benchmark comparison cards
+    active_color = "green" if bench["active_return"] > 0 else "red"
+    ir_color = "green" if bench["information_ratio"] and bench["information_ratio"] > 0.5 else "gray"
+    bench_cards = metric_cards_row([
+        ("Portfolio", f"{bench['portfolio_return']}%", "blue"),
+        ("Benchmark (SPY)", f"{bench['benchmark_return']}%", "gray"),
+        ("Active Return", f"{bench['active_return']:+.2f}%", active_color),
+        ("Tracking Error", f"{bench['tracking_error']}%", "orange"),
+        ("Info Ratio", f"{bench['information_ratio']}" if bench["information_ratio"] else "—", ir_color),
+    ], span=2)
+
+    # Risk-adjusted ratios cards
+    ratios_cards = metric_cards_row([
+        ("Sharpe", f"{ratios['sharpe']}", "green" if ratios["sharpe"] > 0.5 else "gray"),
+        ("Sortino", f"{ratios['sortino']}", "green" if ratios["sortino"] > 0.5 else "gray"),
+        ("Treynor", f"{ratios['treynor']}" if ratios["treynor"] else "—", "blue"),
+        ("Calmar", f"{ratios['calmar']}" if ratios["calmar"] else "—", "blue"),
+    ], span=3)
+
+    # Attribution chart
+    if attrib["contributions"]:
+        contrib_tickers = [c["ticker"] for c in attrib["contributions"]]
+        contrib_values = [c["contribution"] for c in attrib["contributions"]]
+        contrib_colors = [CHART_COLORS["positive"] if v >= 0 else CHART_COLORS["negative"] for v in contrib_values]
+        contrib_fig = bar_chart(
+            contrib_tickers,
+            contrib_values,
+            color=contrib_colors,
+            text=[f"{v:+.2f}%" for v in contrib_values],
+            yaxis_title="Contribution to Return (%)",
+            scheme=scheme,
+        )
+
+        # Attribution table
+        attrib_headers = ["Ticker", "Weight", "Return", "Contribution", "% of Total"]
+        attrib_rows = [
+            [c["ticker"], f"{c['weight']}%", f"{c['position_return']:+.2f}%", f"{c['contribution']:+.2f}%", f"{c['pct_of_total']}%"]
+            for c in attrib["contributions"]
+        ]
+        attrib_colors = [
+            [None, None, "green" if c["position_return"] >= 0 else "red", "green" if c["contribution"] >= 0 else "red", None]
+            for c in attrib["contributions"]
+        ]
+    else:
+        contrib_fig = empty_figure(scheme=scheme)
+        attrib_headers, attrib_rows, attrib_colors = [], [], []
+
+    return dmc.Stack(
+        [
+            dmc.Title("Period Returns", order=5),
+            period_cards,
+            dmc.Divider(my="md"),
+            dmc.Title("Benchmark Comparison (vs SPY)", order=5),
+            bench_cards,
+            dmc.Divider(my="md"),
+            dmc.Title("Risk-Adjusted Ratios", order=5),
+            ratios_cards,
+            dmc.Divider(my="md"),
+            dmc.Title("Performance Attribution", order=5),
+            dmc.Text(f"Total Portfolio Return: {attrib['total_return']}%", fw=500),
+            dmc.Grid(
+                [
+                    dmc.GridCol(
+                        dcc.Graph(figure=contrib_fig, config={"displayModeBar": False}),
+                        span={"base": 12, "md": 6},
+                    ),
+                    dmc.GridCol(
+                        data_table(attrib_headers, attrib_rows, attrib_colors) if attrib_rows else None,
+                        span={"base": 12, "md": 6},
+                    ),
+                ],
+                gutter="md",
+            ),
+        ],
+        gap="sm",
+    )
+
+
+# ============================================================================
+# MARKET RISK TAB (MERGED)
+# ============================================================================
+
+
+@callback(
+    Output("market-risk-content", "children"),
+    Input("selected-portfolio-store", "data"),
+    Input("color-scheme-store", "data"),
+)
+def render_market_risk_tab(portfolio_id, scheme):
+    scheme = scheme or "dark"
+    if not portfolio_id:
+        return dmc.Text("Select a portfolio")
+
+    portfolio = get_portfolio(portfolio_id)
+    risk = get_portfolio_risk(portfolio_id)
+    contributions = get_risk_contributions(portfolio_id)
+    correlation = get_correlation(portfolio_id)
+    rolling = get_rolling_metrics(portfolio_id)
+    tail = get_tail_risk(portfolio_id)
+    mc = get_monte_carlo(portfolio_id)
+    backtest = get_var_backtest(portfolio_id)
+
+    # Extract portfolio and benchmark risk
+    port_risk = risk["portfolio"] if risk else None
+    bench_risk = risk["benchmark"] if risk else None
+
+    # Risk comparison cards
+    if port_risk and bench_risk:
+        risk_cards = dmc.Stack([
+            dmc.Title("VaR 95%", order=6),
+            comparison_row(port_risk["var_95"], bench_risk["var_95"], "VaR 95%", "%", invert_delta=True),
+            dmc.Title("Volatility", order=6, mt="sm"),
+            comparison_row(port_risk["volatility"], bench_risk["volatility"], "Volatility", "%", invert_delta=True),
+            dmc.Title("Sharpe Ratio", order=6, mt="sm"),
+            comparison_row(port_risk["sharpe"], bench_risk["sharpe"], "Sharpe", "", invert_delta=False),
+        ], gap="xs")
+    elif port_risk:
+        risk_cards = metric_cards_row([
+            ("VaR 95%", f"{port_risk['var_95']}%", "orange"),
+            ("VaR 99%", f"{port_risk['var_99']}%", "red"),
+            ("CVaR 95%", f"{port_risk['cvar_95']}%", "orange"),
+            ("Volatility", f"{port_risk['volatility']}%", "blue"),
+            ("Sharpe", f"{port_risk['sharpe']}", "green" if port_risk["sharpe"] > 0.5 else "gray"),
+            ("Max DD", f"{port_risk['max_drawdown']}%", "red"),
+        ], span=2)
+    else:
+        risk_cards = dmc.Text("Unable to load risk metrics", c="dimmed")
+
+    # Rolling metrics charts
+    if rolling:
+        rolling_fig = line_chart(
+            rolling["dates"],
+            {
+                "Rolling VaR 95%": rolling["rolling_var_95"],
+                "Rolling Volatility": rolling["rolling_volatility"],
+            },
+            scheme=scheme,
+            yaxis_title="% (Annualized)",
+        )
+        drawdown_fig = area_chart(
+            rolling["dates"],
+            rolling["drawdown_series"],
+            color=CHART_COLORS["negative"],
+            scheme=scheme,
+            yaxis_title="Drawdown %",
+        )
+    else:
+        rolling_fig = empty_figure(scheme=scheme)
+        drawdown_fig = empty_figure(scheme=scheme)
+
+    # Tail risk cards
+    tail_cards = None
+    worst_table = None
+    best_table = None
+    if tail:
+        tail_cards = metric_cards_row([
+            ("Skewness", f"{tail['skewness']:.3f}", "blue"),
+            ("Kurtosis", f"{tail['kurtosis']:.3f}", "blue"),
+            ("MC VaR 95%", f"{mc['var_95']}%" if mc else "—", "orange"),
+            ("MC CVaR 95%", f"{mc['cvar_95']}%" if mc else "—", "red"),
+        ], span=3)
+
+        worst_headers = ["Date", "Return"]
+        worst_rows = [[d["date"], f"{d['return_pct']:+.2f}%"] for d in tail["worst_days"]]
+        worst_colors = [[None, "red"] for _ in tail["worst_days"]]
+        worst_table = data_table(worst_headers, worst_rows, worst_colors)
+
+        best_rows = [[d["date"], f"{d['return_pct']:+.2f}%"] for d in tail["best_days"]]
+        best_colors = [[None, "green"] for _ in tail["best_days"]]
+        best_table = data_table(worst_headers, best_rows, best_colors)
+
+    # Monte Carlo histogram
+    if mc:
+        mc_fig = histogram_chart(
+            mc["percentiles"],
+            bins=5,
+            var_line=mc["var_95"],
+            scheme=scheme,
+            xaxis_title="Simulated Return %",
+        )
+    else:
+        mc_fig = empty_figure(scheme=scheme)
+
+    # VaR backtest chart
+    if backtest:
+        backtest_fig = line_chart(
+            backtest["dates"],
+            {
+                "Predicted VaR (-)": [-v for v in backtest["predicted_var"]],
+                "Realized Return": backtest["realized_returns"],
+            },
+            scheme=scheme,
+            yaxis_title="Return %",
+        )
+        breach_text = f"Breaches: {backtest['breaches']} ({backtest['breach_rate']:.1f}% vs expected 5%)"
+    else:
+        backtest_fig = empty_figure(scheme=scheme)
+        breach_text = ""
+
+    # Contribution chart
     if contributions:
         tickers = [c["ticker"] for c in contributions]
         pct_contrib = [c["pct_contribution"] for c in contributions]
@@ -219,8 +548,9 @@ def render_risk_tab(portfolio_id, scheme):
             scheme=scheme,
         )
     else:
-        contrib_fig = empty_figure()
+        contrib_fig = empty_figure(scheme=scheme)
 
+    # Correlation heatmap
     if correlation and correlation["matrix"]:
         corr_fig = heatmap_chart(
             correlation["matrix"],
@@ -229,33 +559,43 @@ def render_risk_tab(portfolio_id, scheme):
             scheme=scheme,
         )
     else:
-        corr_fig = empty_figure()
+        corr_fig = empty_figure(scheme=scheme)
 
     return dmc.Stack(
         [
-            # Portfolio header
-            dmc.Title(portfolio["name"], order=3),
-            dmc.Text(portfolio["description"], c="dimmed"),
-
-            # Risk metrics
-            dmc.Title("Risk Metrics", order=5, mt="md"),
-            render_risk_cards(risk),
+            # Risk metrics comparison
+            dmc.Title("Risk Metrics (Portfolio vs Benchmark)", order=5),
+            risk_cards,
 
             dmc.Divider(my="md"),
 
-            # Holdings and allocation
+            # Rolling metrics
+            dmc.Title("Rolling Risk Metrics (20-day window)", order=5),
+            dcc.Graph(figure=rolling_fig, config={"displayModeBar": False}),
+            dmc.Title("Drawdown History", order=5, mt="md"),
+            dcc.Graph(figure=drawdown_fig, config={"displayModeBar": False}),
+
+            dmc.Divider(my="md"),
+
+            # Tail risk and Monte Carlo
+            dmc.Title("Tail Risk & Monte Carlo", order=5),
+            tail_cards if tail_cards else dmc.Text("Unable to load tail risk", c="dimmed"),
             dmc.Grid(
                 [
                     dmc.GridCol(
-                        dmc.Stack([dmc.Title("Holdings", order=5), render_holdings_table(portfolio, value_data)], gap="sm"),
-                        span={"base": 12, "md": 7},
+                        dmc.Stack([dmc.Title("Worst Days", order=6), worst_table], gap="sm") if worst_table else None,
+                        span={"base": 12, "md": 4},
+                    ),
+                    dmc.GridCol(
+                        dmc.Stack([dmc.Title("Best Days", order=6), best_table], gap="sm") if best_table else None,
+                        span={"base": 12, "md": 4},
                     ),
                     dmc.GridCol(
                         dmc.Stack([
-                            dmc.Title("Allocation", order=5),
-                            dcc.Graph(figure=pie_fig, config={"displayModeBar": False}),
+                            dmc.Title("Monte Carlo (10k sims)", order=6),
+                            dcc.Graph(figure=mc_fig, config={"displayModeBar": False}),
                         ], gap="sm"),
-                        span={"base": 12, "md": 5},
+                        span={"base": 12, "md": 4},
                     ),
                 ],
                 gutter="md",
@@ -263,7 +603,14 @@ def render_risk_tab(portfolio_id, scheme):
 
             dmc.Divider(my="md"),
 
-            # Risk analysis
+            # VaR backtest
+            dmc.Title("VaR Backtest (60-day rolling)", order=5),
+            dmc.Text(breach_text, c="dimmed", size="sm") if breach_text else None,
+            dcc.Graph(figure=backtest_fig, config={"displayModeBar": False}),
+
+            dmc.Divider(my="md"),
+
+            # Risk contribution and correlation
             dmc.Grid(
                 [
                     dmc.GridCol(
@@ -289,245 +636,6 @@ def render_risk_tab(portfolio_id, scheme):
 
 
 # ============================================================================
-# STRESS TESTING TAB
-# ============================================================================
-
-@callback(
-    Output("stress-content", "children"),
-    Input("selected-portfolio-store", "data"),
-    Input("color-scheme-store", "data"),
-    Input("scenario-options-store", "data"),
-)
-def render_stress_tab(portfolio_id, scheme, scenario_options):
-    if not portfolio_id:
-        return dmc.Text("Select a portfolio")
-
-    return dmc.Stack(
-        [
-            dmc.Select(
-                id="scenario-dropdown",
-                label="Select Scenario",
-                data=scenario_options or [],
-                value="equity_crash" if scenario_options else None,
-                w={"base": "100%", "sm": 300},
-            ),
-            html.Div(id="stress-results"),
-        ],
-        gap="md",
-    )
-
-
-@callback(
-    Output("stress-results", "children"),
-    Input("scenario-dropdown", "value"),
-    Input("selected-portfolio-store", "data"),
-    Input("color-scheme-store", "data"),
-)
-def update_stress_results(scenario_id, portfolio_id, scheme):
-    scheme = scheme or "dark"
-
-    if not scenario_id or not portfolio_id:
-        return dmc.Text("Select a scenario to view results", c="dimmed")
-
-    result = run_stress_test(portfolio_id, scenario_id)
-    if not result:
-        return dmc.Text("Error loading stress results")
-
-    # Get scenario details (result only has scenario_id and scenario_name)
-    scenarios = get_stress_scenarios()
-    scenario = next((s for s in scenarios if s["id"] == scenario_id), None)
-
-    positions = result["positions"]
-    total_pnl = result["total_pnl_pct"]
-
-    # Scenario description card
-    scenario_card = dmc.Card(
-        [
-            dmc.Title(result["scenario_name"], order=5),
-            dmc.Text(scenario["description"] if scenario else "", c="dimmed", size="sm"),
-            dmc.Title("Shocks by Asset Class:", order=6, mt="sm"),
-            dmc.List(
-                [dmc.ListItem(f"{k}: {v:+.0f}%") for k, v in scenario["shocks"].items()] if scenario else [],
-                size="sm",
-            ),
-        ],
-        withBorder=True,
-        padding="md",
-    )
-
-    # Position breakdown table
-    headers = ["Ticker", "Weight", "Asset Class", "Shock", "P&L"]
-    rows = []
-    row_colors = []
-
-    for pos in positions:
-        pnl = pos["pnl_pct"]
-        pnl_color = "red" if pnl < 0 else "green"
-        rows.append([
-            pos["ticker"],
-            f"{pos['weight']*100:.1f}%",
-            pos["asset_class"],
-            f"{pos['shock']:+.0f}%",
-            f"{pnl:+.2f}%",
-        ])
-        row_colors.append([None, None, None, None, pnl_color])
-
-    detail_table = data_table(headers, rows, row_colors)
-    total_color = "red" if total_pnl < 0 else "green"
-
-    # P&L summary
-    pnl_summary = dmc.Group(
-        [
-            dmc.Text("Total Portfolio P&L:", fw=500),
-            dmc.Text(f"{total_pnl:+.2f}%", c=total_color, fw=700, size="xl"),
-        ],
-        gap="sm",
-    )
-
-    return dmc.Stack(
-        [
-            scenario_card,
-            dmc.Divider(my="md"),
-            dmc.Title("Position Breakdown", order=5),
-            detail_table,
-            dmc.Divider(my="md"),
-            pnl_summary,
-        ],
-        gap="md",
-    )
-
-
-# ============================================================================
-# TIME SERIES TAB
-# ============================================================================
-
-
-@callback(
-    Output("timeseries-content", "children"),
-    Input("selected-portfolio-store", "data"),
-    Input("color-scheme-store", "data"),
-)
-def render_timeseries_tab(portfolio_id, scheme):
-    scheme = scheme or "dark"
-    if not portfolio_id:
-        return dmc.Text("Select a portfolio")
-
-    rolling = get_rolling_metrics(portfolio_id)
-    if not rolling:
-        return dmc.Text("Unable to load time series data", c="dimmed")
-
-    # Rolling VaR and Volatility chart
-    rolling_fig = line_chart(
-        rolling["dates"],
-        {
-            "Rolling VaR 95%": rolling["rolling_var_95"],
-            "Rolling Volatility": rolling["rolling_volatility"],
-        },
-        scheme=scheme,
-        yaxis_title="% (Annualized)",
-    )
-
-    # Drawdown chart
-    drawdown_fig = area_chart(
-        rolling["dates"],
-        rolling["drawdown_series"],
-        color=CHART_COLORS["negative"],
-        scheme=scheme,
-        yaxis_title="Drawdown %",
-    )
-
-    return dmc.Stack(
-        [
-            dmc.Title("Rolling Risk Metrics (20-day window)", order=5),
-            dcc.Graph(figure=rolling_fig, config={"displayModeBar": False}),
-            dmc.Divider(my="md"),
-            dmc.Title("Drawdown History", order=5),
-            dcc.Graph(figure=drawdown_fig, config={"displayModeBar": False}),
-        ],
-        gap="sm",
-    )
-
-
-# ============================================================================
-# DISTRIBUTION TAB
-# ============================================================================
-
-
-@callback(
-    Output("distribution-content", "children"),
-    Input("selected-portfolio-store", "data"),
-    Input("color-scheme-store", "data"),
-)
-def render_distribution_tab(portfolio_id, scheme):
-    scheme = scheme or "dark"
-    if not portfolio_id:
-        return dmc.Text("Select a portfolio")
-
-    tail = get_tail_risk(portfolio_id)
-    mc = get_monte_carlo(portfolio_id)
-
-    if not tail:
-        return dmc.Text("Unable to load distribution data", c="dimmed")
-
-    # Tail risk cards
-    tail_cards = dmc.Grid(
-        [
-            dmc.GridCol(metric_card("Skewness", f"{tail['skewness']:.3f}", "blue"), span={"base": 6, "sm": 3}),
-            dmc.GridCol(metric_card("Kurtosis", f"{tail['kurtosis']:.3f}", "blue"), span={"base": 6, "sm": 3}),
-            dmc.GridCol(metric_card("MC VaR 95%", f"{mc['var_95']}%" if mc else "—", "orange"), span={"base": 6, "sm": 3}),
-            dmc.GridCol(metric_card("MC CVaR 95%", f"{mc['cvar_95']}%" if mc else "—", "red"), span={"base": 6, "sm": 3}),
-        ],
-        gutter="xs",
-    )
-
-    # Worst and best days tables
-    worst_headers = ["Date", "Return"]
-    worst_rows = [[d["date"], f"{d['return_pct']:+.2f}%"] for d in tail["worst_days"]]
-    worst_colors = [[None, "red"] for _ in tail["worst_days"]]
-
-    best_rows = [[d["date"], f"{d['return_pct']:+.2f}%"] for d in tail["best_days"]]
-    best_colors = [[None, "green"] for _ in tail["best_days"]]
-
-    # Monte Carlo histogram
-    if mc:
-        mc_fig = histogram_chart(
-            mc["percentiles"],
-            bins=5,
-            var_line=mc["var_95"],
-            scheme=scheme,
-            xaxis_title="Simulated Return %",
-        )
-    else:
-        mc_fig = empty_figure(scheme=scheme)
-
-    return dmc.Stack(
-        [
-            dmc.Title("Tail Risk Statistics", order=5),
-            tail_cards,
-            dmc.Divider(my="md"),
-            dmc.Grid(
-                [
-                    dmc.GridCol(
-                        dmc.Stack([dmc.Title("Worst Days", order=5), data_table(worst_headers, worst_rows, worst_colors)], gap="sm"),
-                        span={"base": 12, "md": 6},
-                    ),
-                    dmc.GridCol(
-                        dmc.Stack([dmc.Title("Best Days", order=5), data_table(worst_headers, best_rows, best_colors)], gap="sm"),
-                        span={"base": 12, "md": 6},
-                    ),
-                ],
-                gutter="md",
-            ),
-            dmc.Divider(my="md"),
-            dmc.Title("Monte Carlo Simulation (10,000 runs)", order=5),
-            dmc.Text("Distribution percentiles: 5th, 25th, 50th, 75th, 95th", c="dimmed", size="sm"),
-            dcc.Graph(figure=mc_fig, config={"displayModeBar": False}),
-        ],
-        gap="sm",
-    )
-
-
-# ============================================================================
 # FACTORS TAB
 # ============================================================================
 
@@ -544,19 +652,15 @@ def render_factors_tab(portfolio_id, scheme):
 
     beta_data = get_beta(portfolio_id)
     factors = get_factor_exposures(portfolio_id)
-    backtest = get_var_backtest(portfolio_id)
 
     # Beta cards
     if beta_data:
-        beta_cards = dmc.Grid(
-            [
-                dmc.GridCol(metric_card("Market Beta", f"{beta_data['beta']:.2f}", "blue"), span={"base": 6, "sm": 3}),
-                dmc.GridCol(metric_card("Alpha", f"{beta_data['alpha']:+.2f}%", "green" if beta_data["alpha"] > 0 else "red"), span={"base": 6, "sm": 3}),
-                dmc.GridCol(metric_card("R²", f"{beta_data['r_squared']:.2f}", "blue"), span={"base": 6, "sm": 3}),
-                dmc.GridCol(metric_card("Correlation", f"{beta_data['correlation']:.2f}", "blue"), span={"base": 6, "sm": 3}),
-            ],
-            gutter="xs",
-        )
+        beta_cards = metric_cards_row([
+            ("Market Beta", f"{beta_data['beta']:.2f}", "blue"),
+            ("Alpha", f"{beta_data['alpha']:+.2f}%", "green" if beta_data["alpha"] > 0 else "red"),
+            ("R²", f"{beta_data['r_squared']:.2f}", "blue"),
+            ("Correlation", f"{beta_data['correlation']:.2f}", "blue"),
+        ], span=3)
     else:
         beta_cards = dmc.Text("Unable to load beta data", c="dimmed")
 
@@ -571,27 +675,9 @@ def render_factors_tab(portfolio_id, scheme):
             yaxis_title="Factor Beta",
         )
         factor_r2 = f"R² = {factors['r_squared']:.2f}"
-        factor_error = None
     else:
         factor_fig = empty_figure(scheme=scheme)
         factor_r2 = ""
-        factor_error = dmc.Text("Unable to load factor data (ETF data unavailable)", c="dimmed", size="sm")
-
-    # VaR backtest chart
-    if backtest:
-        backtest_fig = line_chart(
-            backtest["dates"],
-            {
-                "Predicted VaR (-)": [-v for v in backtest["predicted_var"]],
-                "Realized Return": backtest["realized_returns"],
-            },
-            scheme=scheme,
-            yaxis_title="Return %",
-        )
-        breach_text = f"Breaches: {backtest['breaches']} ({backtest['breach_rate']:.1f}% vs expected 5%)"
-    else:
-        backtest_fig = empty_figure(scheme=scheme)
-        breach_text = ""
 
     return dmc.Stack(
         [
@@ -599,12 +685,8 @@ def render_factors_tab(portfolio_id, scheme):
             beta_cards,
             dmc.Divider(my="md"),
             dmc.Title("Factor Exposures", order=5),
-            dmc.Text(factor_r2, c="dimmed", size="sm") if factor_r2 else factor_error,
+            dmc.Text(factor_r2, c="dimmed", size="sm") if factor_r2 else None,
             dcc.Graph(figure=factor_fig, config={"displayModeBar": False}) if factors else None,
-            dmc.Divider(my="md"),
-            dmc.Title("VaR Backtest (60-day rolling)", order=5),
-            dmc.Text(breach_text, c="dimmed", size="sm") if breach_text else None,
-            dcc.Graph(figure=backtest_fig, config={"displayModeBar": False}),
         ],
         gap="sm",
     )
@@ -694,6 +776,116 @@ def render_concentration_tab(portfolio_id, scheme):
             data_table(liq_headers, liq_rows, liq_colors_table) if liq_rows else None,
         ],
         gap="sm",
+    )
+
+
+# ============================================================================
+# STRESS TESTING TAB
+# ============================================================================
+
+
+@callback(
+    Output("stress-content", "children"),
+    Input("selected-portfolio-store", "data"),
+    Input("color-scheme-store", "data"),
+    Input("scenario-options-store", "data"),
+)
+def render_stress_tab(portfolio_id, scheme, scenario_options):
+    if not portfolio_id:
+        return dmc.Text("Select a portfolio")
+
+    return dmc.Stack(
+        [
+            dmc.Select(
+                id="scenario-dropdown",
+                label="Select Scenario",
+                data=scenario_options or [],
+                value="equity_crash" if scenario_options else None,
+                w={"base": "100%", "sm": 300},
+            ),
+            html.Div(id="stress-results"),
+        ],
+        gap="md",
+    )
+
+
+@callback(
+    Output("stress-results", "children"),
+    Input("scenario-dropdown", "value"),
+    Input("selected-portfolio-store", "data"),
+    Input("color-scheme-store", "data"),
+)
+def update_stress_results(scenario_id, portfolio_id, scheme):
+    scheme = scheme or "dark"
+
+    if not scenario_id or not portfolio_id:
+        return dmc.Text("Select a scenario to view results", c="dimmed")
+
+    result = run_stress_test(portfolio_id, scenario_id)
+    if not result:
+        return dmc.Text("Error loading stress results")
+
+    # Get scenario details
+    scenarios = get_stress_scenarios()
+    scenario = next((s for s in scenarios if s["id"] == scenario_id), None)
+
+    positions = result["positions"]
+    total_pnl = result["total_pnl_pct"]
+
+    # Scenario description card
+    scenario_card = dmc.Card(
+        [
+            dmc.Title(result["scenario_name"], order=5),
+            dmc.Text(scenario["description"] if scenario else "", c="dimmed", size="sm"),
+            dmc.Title("Shocks by Asset Class:", order=6, mt="sm"),
+            dmc.List(
+                [dmc.ListItem(f"{k}: {v:+.0f}%") for k, v in scenario["shocks"].items()] if scenario else [],
+                size="sm",
+            ),
+        ],
+        withBorder=True,
+        padding="md",
+    )
+
+    # Position breakdown table
+    headers = ["Ticker", "Weight", "Asset Class", "Shock", "P&L"]
+    rows = []
+    row_colors = []
+
+    for pos in positions:
+        pnl = pos["pnl_pct"]
+        pnl_color = "red" if pnl < 0 else "green"
+        rows.append([
+            pos["ticker"],
+            f"{pos['weight']*100:.1f}%",
+            pos["asset_class"],
+            f"{pos['shock']:+.0f}%",
+            f"{pnl:+.2f}%",
+        ])
+        row_colors.append([None, None, None, None, pnl_color])
+
+    detail_table = data_table(headers, rows, row_colors)
+    total_color = "red" if total_pnl < 0 else "green"
+
+    # P&L summary
+    pnl_summary = dmc.Group(
+        [
+            dmc.Text("Total Portfolio P&L:", fw=500),
+            dmc.Text(f"{total_pnl:+.2f}%", c=total_color, fw=700, size="xl"),
+        ],
+        gap="sm",
+    )
+
+    return dmc.Stack(
+        [
+            scenario_card,
+            dmc.Divider(my="md"),
+            dmc.Title("Position Breakdown", order=5),
+            detail_table,
+            dmc.Divider(my="md"),
+            pnl_summary,
+        ],
+        gap="md",
     )
 
 
@@ -800,23 +992,11 @@ def analyze_whatif(n_clicks, portfolio_id, weights, ids, scheme):
     )
 
     # Delta cards
-    delta_cards = dmc.Grid(
-        [
-            dmc.GridCol(
-                metric_card("Δ VaR 95%", f"{delta['var_95']:+.2f}%", "green" if delta["var_95"] < 0 else "red"),
-                span={"base": 6, "sm": 4},
-            ),
-            dmc.GridCol(
-                metric_card("Δ Volatility", f"{delta['volatility']:+.2f}%", "green" if delta["volatility"] < 0 else "red"),
-                span={"base": 6, "sm": 4},
-            ),
-            dmc.GridCol(
-                metric_card("Δ Sharpe", f"{delta['sharpe']:+.2f}", "green" if delta["sharpe"] > 0 else "red"),
-                span={"base": 6, "sm": 4},
-            ),
-        ],
-        gutter="xs",
-    )
+    delta_cards = metric_cards_row([
+        ("Δ VaR 95%", f"{delta['var_95']:+.2f}%", "green" if delta["var_95"] < 0 else "red"),
+        ("Δ Volatility", f"{delta['volatility']:+.2f}%", "green" if delta["volatility"] < 0 else "red"),
+        ("Δ Sharpe", f"{delta['sharpe']:+.2f}", "green" if delta["sharpe"] > 0 else "red"),
+    ], span=4)
 
     return dmc.Stack(
         [

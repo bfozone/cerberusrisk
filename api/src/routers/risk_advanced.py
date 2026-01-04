@@ -5,17 +5,18 @@ from sqlalchemy.orm import Session
 from src.database import get_db
 from src.models import Portfolio
 from src.services.market_data import MarketDataService
-from src.services.risk_engine import (
-    RiskEngine,
-    RollingMetrics,
-    TailRiskStats,
+from src.services.risk_engine import RiskEngine
+from src.services.risk_models import (
     BetaMetrics,
-    VarBacktest,
-    SectorConcentration,
-    PortfolioLiquidity,
-    WhatIfResult,
-    MonteCarloResult,
     FactorExposures,
+    MonteCarloResult,
+    PerformanceMetrics,
+    PortfolioLiquidity,
+    RollingMetrics,
+    SectorConcentration,
+    TailRiskStats,
+    VarBacktest,
+    WhatIfResult,
 )
 from src.config import settings
 
@@ -211,5 +212,20 @@ def get_factor_exposures(portfolio_id: int, db: Session = Depends(get_db)):
     result = risk_engine.calculate_factor_exposures(portfolio_returns, factor_returns)
     if result is None:
         raise HTTPException(status_code=400, detail="Cannot calculate factor exposures")
+
+    return result
+
+
+@router.get("/{portfolio_id}/performance", response_model=PerformanceMetrics)
+def get_performance(portfolio_id: int, benchmark: str = "SPY", db: Session = Depends(get_db)):
+    """Get comprehensive performance metrics with benchmark comparison."""
+    _, _, weights, histories = get_portfolio_data(portfolio_id, db)
+
+    # Get benchmark history
+    benchmark_history = market_service.get_history(benchmark)
+
+    result = risk_engine.calculate_performance_metrics(histories, weights, benchmark_history)
+    if result is None:
+        raise HTTPException(status_code=400, detail="Insufficient price history")
 
     return result

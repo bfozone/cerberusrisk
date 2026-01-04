@@ -16,16 +16,18 @@ def metric_card(label: str, value: str, color: str | None = None) -> dmc.Card:
 
 def portfolio_card(portfolio: dict, risk: dict | None) -> dmc.Card:
     """Create a portfolio summary card with risk metrics."""
-    var_value = risk.get("var_95", 0) if risk else 0
+    # Handle new ComparativeRiskMetrics format: {"portfolio": {...}, "benchmark": {...}, "delta": {...}}
+    port_risk = risk.get("portfolio") if risk else None
+    var_value = port_risk.get("var_95", 0) if port_risk else 0
     risk_color = "green" if var_value < 15 else "orange"
 
     metrics = []
-    if risk:
+    if port_risk:
         metrics = [
-            ("VaR 95%", f"{risk['var_95']}%", risk_color),
-            ("Volatility", f"{risk['volatility']}%", "blue"),
-            ("Sharpe", f"{risk['sharpe']}", "blue"),
-            ("Max DD", f"{risk['max_drawdown']}%", "red"),
+            ("VaR 95%", f"{port_risk['var_95']}%", risk_color),
+            ("Volatility", f"{port_risk['volatility']}%", "blue"),
+            ("Sharpe", f"{port_risk['sharpe']}", "blue"),
+            ("Max DD", f"{port_risk['max_drawdown']}%", "red"),
         ]
 
     metric_items = [

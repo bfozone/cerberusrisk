@@ -211,3 +211,16 @@ def get_factor_exposures(portfolio_id: int):
         return r.json()
     except Exception:
         return None
+
+
+def get_performance(portfolio_id: int, benchmark: str = "SPY"):
+    try:
+        r = requests.get(
+            f"{API_URL}/api/portfolios/{portfolio_id}/performance",
+            params={"benchmark": benchmark},
+            timeout=60,
+        )
+        r.raise_for_status()
+        return r.json()
+    except Exception:
+        return None

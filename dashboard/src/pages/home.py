@@ -46,8 +46,9 @@ def update_risk_chart(scheme):
             risk_data.append({"name": p["name"], "risk": risk})
 
         names = [r["name"] for r in risk_data]
-        var_values = [r["risk"]["var_95"] if r["risk"] else 0 for r in risk_data]
-        vol_values = [r["risk"]["volatility"] if r["risk"] else 0 for r in risk_data]
+        # Handle new ComparativeRiskMetrics format: {"portfolio": {...}, "benchmark": {...}, "delta": {...}}
+        var_values = [r["risk"]["portfolio"]["var_95"] if r["risk"] and r["risk"].get("portfolio") else 0 for r in risk_data]
+        vol_values = [r["risk"]["portfolio"]["volatility"] if r["risk"] and r["risk"].get("portfolio") else 0 for r in risk_data]
 
         fig.add_trace(go.Bar(
             name="VaR 95%",

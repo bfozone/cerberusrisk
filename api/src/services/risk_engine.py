@@ -1,104 +1,28 @@
 import numpy as np
-from pydantic import BaseModel
 from scipy import stats
 
-
-class RiskMetrics(BaseModel):
-    var_95: float
-    var_99: float
-    cvar_95: float
-    volatility: float
-    sharpe: float
-    max_drawdown: float
-    current_drawdown: float
-
-
-class RiskContribution(BaseModel):
-    ticker: str
-    weight: float
-    volatility: float
-    marginal_var: float
-    component_var: float
-    pct_contribution: float
-
-
-# ============================================================================
-# ADVANCED RISK MODELS
-# ============================================================================
-
-
-class RollingMetrics(BaseModel):
-    dates: list[str]
-    rolling_var_95: list[float]
-    rolling_volatility: list[float]
-    drawdown_series: list[float]
-
-
-class TailRiskStats(BaseModel):
-    skewness: float
-    kurtosis: float
-    worst_days: list[dict]
-    best_days: list[dict]
-
-
-class BetaMetrics(BaseModel):
-    beta: float
-    alpha: float
-    r_squared: float
-    correlation: float
-
-
-class VarBacktest(BaseModel):
-    dates: list[str]
-    predicted_var: list[float]
-    realized_returns: list[float]
-    breaches: int
-    breach_rate: float
-
-
-class SectorExposure(BaseModel):
-    sector: str
-    weight: float
-    tickers: list[str]
-
-
-class SectorConcentration(BaseModel):
-    sectors: list[SectorExposure]
-    hhi: float
-
-
-class PositionLiquidity(BaseModel):
-    ticker: str
-    avg_volume: float
-    avg_dollar_volume: float
-    days_to_liquidate: float
-    score: float
-
-
-class PortfolioLiquidity(BaseModel):
-    positions: list[PositionLiquidity]
-    weighted_score: float
-
-
-class WhatIfResult(BaseModel):
-    original: RiskMetrics
-    modified: RiskMetrics
-    delta: dict[str, float]
-
-
-class MonteCarloResult(BaseModel):
-    simulations: int
-    var_95: float
-    var_99: float
-    cvar_95: float
-    percentiles: list[float]
-
-
-class FactorExposures(BaseModel):
-    market_beta: float
-    size_beta: float
-    value_beta: float
-    r_squared: float
+from src.services.risk_models import (
+    BenchmarkComparison,
+    BetaMetrics,
+    ComparativeRiskMetrics,
+    FactorExposures,
+    MonteCarloResult,
+    PerformanceAttribution,
+    PerformanceMetrics,
+    PeriodReturns,
+    PortfolioLiquidity,
+    PositionContribution,
+    PositionLiquidity,
+    RiskAdjustedRatios,
+    RiskContribution,
+    RiskMetrics,
+    RollingMetrics,
+    SectorConcentration,
+    SectorExposure,
+    TailRiskStats,
+    VarBacktest,
+    WhatIfResult,
+)
 
 
 class RiskEngine:
@@ -165,6 +89,48 @@ class RiskEngine:
             sharpe=round(sharpe, 2),
             max_drawdown=round(max_drawdown * 100, 2),
             current_drawdown=round(current_drawdown * 100, 2),
+        )
+
+    def _calculate_delta(self, a: RiskMetrics, b: RiskMetrics) -> dict[str, float]:
+        """Calculate difference between two RiskMetrics (a - b)."""
+        return {
+            "var_95": round(a.var_95 - b.var_95, 2),
+            "var_99": round(a.var_99 - b.var_99, 2),
+            "cvar_95": round(a.cvar_95 - b.cvar_95, 2),
+            "volatility": round(a.volatility - b.volatility, 2),
+            "sharpe": round(a.sharpe - b.sharpe, 2),
+            "max_drawdown": round(a.max_drawdown - b.max_drawdown, 2),
+        }
+
+    def calculate_comparative_risk(
+        self,
+        histories: dict[str, list[dict]],
+        weights: dict[str, float],
+        benchmark_history: list[dict] | None = None,
+    ) -> ComparativeRiskMetrics | None:
+        """Calculate risk metrics for both portfolio and benchmark."""
+        portfolio_returns = self.calculate_portfolio_returns(histories, weights)
+        if portfolio_returns is None:
+            return None
+
+        portfolio_metrics = self.calculate_risk_metrics(portfolio_returns)
+
+        if benchmark_history:
+            benchmark_prices = [d["close"] for d in benchmark_history]
+            benchmark_returns = self.calculate_returns(benchmark_prices)
+            # Align lengths
+            min_len = min(len(portfolio_returns), len(benchmark_returns))
+            benchmark_returns = benchmark_returns[-min_len:]
+            benchmark_metrics = self.calculate_risk_metrics(benchmark_returns)
+            delta = self._calculate_delta(portfolio_metrics, benchmark_metrics)
+        else:
+            benchmark_metrics = None
+            delta = None
+
+        return ComparativeRiskMetrics(
+            portfolio=portfolio_metrics,
+            benchmark=benchmark_metrics,
+            delta=delta,
         )
 
     def calculate_risk_contributions(
@@ -586,4 +552,251 @@ class RiskEngine:
             size_beta=round(betas[2], 3),
             value_beta=round(betas[3], 3),
             r_squared=round(r_squared, 3),
+        )
+
+    # ========================================================================
+    # PERFORMANCE METHODS
+    # ========================================================================
+
+    def _get_period_start_index(self, dates: list[str], period: str) -> int | None:
+        """Find index for period start (MTD, QTD, YTD, 1Y)."""
+        from datetime import datetime, timedelta
+
+        if not dates:
+            return None
+
+        end_date = datetime.strptime(dates[-1], "%Y-%m-%d")
+
+        if period == "MTD":
+            target = end_date.replace(day=1)
+        elif period == "QTD":
+            quarter_month = ((end_date.month - 1) // 3) * 3 + 1
+            target = end_date.replace(month=quarter_month, day=1)
+        elif period == "YTD":
+            target = end_date.replace(month=1, day=1)
+        elif period == "1Y":
+            target = end_date - timedelta(days=365)
+        else:
+            return None
+
+        # Find closest date >= target
+        for i, d in enumerate(dates):
+            if datetime.strptime(d, "%Y-%m-%d") >= target:
+                return i
+        return None
+
+    def calculate_period_returns(
+        self,
+        histories: dict[str, list[dict]],
+        weights: dict[str, float],
+    ) -> PeriodReturns | None:
+        """Calculate returns for various periods."""
+        returns, dates = self._get_aligned_returns_with_dates(histories, weights)
+        if returns is None or len(returns) < 2:
+            return None
+
+        # Cumulative returns for full period
+        cumulative = np.cumprod(1 + returns)
+        total_return = (cumulative[-1] - 1)
+        n_days = len(returns)
+        annualized = (1 + total_return) ** (self.TRADING_DAYS / n_days) - 1
+
+        # Period returns
+        period_returns = {}
+        for period in ["MTD", "QTD", "YTD", "1Y"]:
+            idx = self._get_period_start_index(dates, period)
+            if idx is not None and idx < len(cumulative):
+                start_val = cumulative[idx - 1] if idx > 0 else 1.0
+                period_returns[period] = (cumulative[-1] / start_val) - 1
+            else:
+                period_returns[period] = None
+
+        return PeriodReturns(
+            mtd=round(period_returns["MTD"] * 100, 2) if period_returns["MTD"] is not None else None,
+            qtd=round(period_returns["QTD"] * 100, 2) if period_returns["QTD"] is not None else None,
+            ytd=round(period_returns["YTD"] * 100, 2) if period_returns["YTD"] is not None else None,
+            one_year=round(period_returns["1Y"] * 100, 2) if period_returns["1Y"] is not None else None,
+            since_inception=round(total_return * 100, 2),
+            annualized=round(annualized * 100, 2),
+        )
+
+    def calculate_benchmark_comparison(
+        self,
+        portfolio_returns: np.ndarray,
+        benchmark_returns: np.ndarray,
+    ) -> BenchmarkComparison | None:
+        """Compare portfolio vs benchmark performance."""
+        if len(portfolio_returns) != len(benchmark_returns):
+            min_len = min(len(portfolio_returns), len(benchmark_returns))
+            portfolio_returns = portfolio_returns[-min_len:]
+            benchmark_returns = benchmark_returns[-min_len:]
+
+        if len(portfolio_returns) < 20:
+            return None
+
+        # Total returns
+        port_total = np.prod(1 + portfolio_returns) - 1
+        bench_total = np.prod(1 + benchmark_returns) - 1
+        active_return = port_total - bench_total
+
+        # Tracking error (annualized volatility of active returns)
+        active_returns = portfolio_returns - benchmark_returns
+        tracking_error = np.std(active_returns) * np.sqrt(self.TRADING_DAYS)
+
+        # Information ratio (annualized)
+        active_return_ann = np.mean(active_returns) * self.TRADING_DAYS
+        info_ratio = active_return_ann / tracking_error if tracking_error > 0 else None
+
+        return BenchmarkComparison(
+            portfolio_return=round(port_total * 100, 2),
+            benchmark_return=round(bench_total * 100, 2),
+            active_return=round(active_return * 100, 2),
+            tracking_error=round(tracking_error * 100, 2),
+            information_ratio=round(info_ratio, 2) if info_ratio is not None else None,
+        )
+
+    def calculate_risk_adjusted_ratios(
+        self,
+        returns: np.ndarray,
+        beta: float | None = None,
+        max_drawdown: float | None = None,
+    ) -> RiskAdjustedRatios:
+        """Calculate Sharpe, Sortino, Treynor, Calmar ratios."""
+        mean_return = np.mean(returns) * self.TRADING_DAYS
+        volatility = np.std(returns) * np.sqrt(self.TRADING_DAYS)
+        excess_return = mean_return - self.RISK_FREE_RATE
+
+        # Sharpe
+        sharpe = excess_return / volatility if volatility > 0 else 0
+
+        # Sortino (downside deviation)
+        negative_returns = returns[returns < 0]
+        downside_vol = np.std(negative_returns) * np.sqrt(self.TRADING_DAYS) if len(negative_returns) > 0 else 0
+        sortino = excess_return / downside_vol if downside_vol > 0 else 0
+
+        # Treynor (requires beta)
+        treynor = excess_return / beta if beta and beta > 0 else None
+
+        # Calmar (requires max drawdown)
+        calmar = mean_return / max_drawdown if max_drawdown and max_drawdown > 0 else None
+
+        return RiskAdjustedRatios(
+            sharpe=round(sharpe, 2),
+            sortino=round(sortino, 2),
+            treynor=round(treynor, 2) if treynor is not None else None,
+            calmar=round(calmar, 2) if calmar is not None else None,
+        )
+
+    def calculate_performance_attribution(
+        self,
+        histories: dict[str, list[dict]],
+        weights: dict[str, float],
+    ) -> PerformanceAttribution | None:
+        """Calculate contribution of each position to total return."""
+        tickers = [t for t in weights.keys() if t != "CASH" and histories.get(t)]
+        if not tickers:
+            return None
+
+        min_len = min(len(histories[t]) for t in tickers)
+        if min_len < 2:
+            return None
+
+        contributions = []
+        total_contribution = 0
+
+        for ticker in tickers:
+            prices = [d["close"] for d in histories[ticker][-min_len:]]
+            position_return = (prices[-1] / prices[0]) - 1
+            weight = weights[ticker]
+            contribution = weight * position_return
+            total_contribution += contribution
+
+            contributions.append({
+                "ticker": ticker,
+                "weight": weight,
+                "position_return": position_return,
+                "contribution": contribution,
+            })
+
+        # Calculate percentage of total
+        result = []
+        for c in contributions:
+            pct = (c["contribution"] / total_contribution * 100) if total_contribution != 0 else 0
+            result.append(PositionContribution(
+                ticker=c["ticker"],
+                weight=round(c["weight"] * 100, 2),
+                position_return=round(c["position_return"] * 100, 2),
+                contribution=round(c["contribution"] * 100, 2),
+                pct_of_total=round(pct, 1),
+            ))
+
+        # Sort by contribution (descending)
+        result.sort(key=lambda x: x.contribution, reverse=True)
+
+        return PerformanceAttribution(
+            total_return=round(total_contribution * 100, 2),
+            contributions=result,
+        )
+
+    def calculate_performance_metrics(
+        self,
+        histories: dict[str, list[dict]],
+        weights: dict[str, float],
+        benchmark_history: list[dict] | None = None,
+    ) -> PerformanceMetrics | None:
+        """Calculate comprehensive performance metrics."""
+        # Period returns
+        period_returns = self.calculate_period_returns(histories, weights)
+        if period_returns is None:
+            return None
+
+        # Portfolio returns for other calculations
+        portfolio_returns = self.calculate_portfolio_returns(histories, weights)
+        if portfolio_returns is None:
+            return None
+
+        # Benchmark comparison
+        if benchmark_history:
+            bench_prices = [d["close"] for d in benchmark_history]
+            bench_returns = self.calculate_returns(bench_prices)
+            # Align lengths
+            min_len = min(len(portfolio_returns), len(bench_returns))
+            benchmark = self.calculate_benchmark_comparison(
+                portfolio_returns[-min_len:],
+                bench_returns[-min_len:],
+            )
+            # Get beta for Treynor
+            beta_metrics = self.calculate_beta(portfolio_returns[-min_len:], bench_returns[-min_len:])
+            beta = beta_metrics.beta if beta_metrics else None
+        else:
+            benchmark = BenchmarkComparison(
+                portfolio_return=period_returns.since_inception,
+                benchmark_return=0,
+                active_return=period_returns.since_inception,
+                tracking_error=0,
+                information_ratio=None,
+            )
+            beta = None
+
+        # Risk metrics for Calmar
+        risk_metrics = self.calculate_risk_metrics(portfolio_returns)
+        max_dd = risk_metrics.max_drawdown / 100 if risk_metrics else None
+
+        # Risk-adjusted ratios
+        risk_adjusted = self.calculate_risk_adjusted_ratios(
+            portfolio_returns,
+            beta=beta,
+            max_drawdown=max_dd,
+        )
+
+        # Attribution
+        attribution = self.calculate_performance_attribution(histories, weights)
+        if attribution is None:
+            attribution = PerformanceAttribution(total_return=0, contributions=[])
+
+        return PerformanceMetrics(
+            period_returns=period_returns,
+            benchmark=benchmark,
+            risk_adjusted=risk_adjusted,
+            attribution=attribution,
         )
