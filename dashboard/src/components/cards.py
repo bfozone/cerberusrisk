@@ -52,8 +52,8 @@ def portfolio_card(portfolio: dict, risk: dict | None) -> dmc.Card:
                     dmc.Grid(metric_items, gutter="xs"),
                     dmc.Divider(),
                     dmc.Anchor(
-                        dmc.Button("View Details", size="xs", variant="light"),
-                        href=f"/portfolio/{portfolio['id']}",
+                        dmc.Button("View Analytics", size="xs", variant="light"),
+                        href="/analytics",
                     ),
                 ],
                 gap="sm",

@@ -4,7 +4,6 @@ import dash_mantine_components as dmc
 from dash_iconify import DashIconify
 
 from src.theme import theme, PALETTE_DARK, PALETTE_LIGHT
-from src.api import get_portfolios
 from src.components.icons import Icon
 
 app = Dash(
@@ -322,28 +321,12 @@ def update_styles(scheme):
 )
 def update_nav(pathname, scheme):
     pathname = pathname or "/"
-    portfolios = get_portfolios()
     palette = PALETTE_DARK if scheme == "dark" else PALETTE_LIGHT
     icon_color = palette["text"]
 
-    portfolio_links = [
-        nav_link(p["name"], f"/portfolio/{p['id']}", "dot-filled", pathname, icon_color)
-        for p in portfolios
-    ]
-
     return [
         nav_link("Home", "/", "home", pathname, icon_color),
-        dmc.NavLink(
-            label=html.Span("Portfolios", className="nav-label"),
-            leftSection=Icon("layers", size=18, color=icon_color),
-            childrenOffset=28,
-            opened=pathname.startswith("/portfolio"),
-            variant="light",
-            children=portfolio_links if portfolio_links else [
-                dmc.Text("No portfolios", size="sm", c="dimmed", p="xs")
-            ],
-        ),
-        nav_link("Stress Test", "/stress", "mix", pathname, icon_color),
+        nav_link("Portfolio Analytics", "/analytics", "chart-line", pathname, icon_color),
     ]
 
 
