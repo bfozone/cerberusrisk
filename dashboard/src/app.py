@@ -19,14 +19,17 @@ def nav_link(label, href, icon, pathname, collapsed=False):
     """Single reusable nav link component."""
     active = pathname == href if href == "/" else pathname.startswith(href)
     if collapsed:
-        return dmc.NavLink(
-            label=None,
-            href=href,
-            leftSection=None,
-            children=DashIconify(icon=icon, width=20),
-            active=active,
-            variant="light",
-            styles={"root": {"justifyContent": "center"}, "body": {"flex": "none"}},
+        return dmc.Tooltip(
+            dmc.ActionIcon(
+                DashIconify(icon=icon, width=20),
+                component="a",
+                href=href,
+                variant="light" if active else "subtle",
+                color="violet" if active else "gray",
+                size="lg",
+            ),
+            label=label,
+            position="right",
         )
     return dmc.NavLink(
         label=label,
@@ -319,12 +322,16 @@ def update_nav(scheme, pathname, collapsed):
     portfolios = get_portfolios()
 
     if collapsed:
-        # Collapsed: icons only, no nested items
-        return [
-            nav_link("Home", "/", "radix-icons:home", pathname, collapsed=True),
-            nav_link("Portfolios", "/portfolio/1", "radix-icons:layers", pathname, collapsed=True),
-            nav_link("Stress Test", "/stress", "radix-icons:mix", pathname, collapsed=True),
-        ]
+        # Collapsed: icons only with tooltips, centered
+        return dmc.Stack(
+            [
+                nav_link("Home", "/", "radix-icons:home", pathname, collapsed=True),
+                nav_link("Portfolios", "/portfolio/1", "radix-icons:layers", pathname, collapsed=True),
+                nav_link("Stress Test", "/stress", "radix-icons:mix", pathname, collapsed=True),
+            ],
+            align="center",
+            gap="xs",
+        )
 
     # Expanded: full nav with nested portfolios
     portfolio_links = [
