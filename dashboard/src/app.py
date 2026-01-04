@@ -77,7 +77,7 @@ navbar = dmc.AppShellNavbar(
             # Header
             dmc.Group(
                 [
-                    DashIconify(icon="radix-icons:shield", width=24, id="logo-icon"),
+                    DashIconify(icon="gravity-ui:nodes-down", width=24, id="logo-icon"),
                     dmc.Title("CerberusRisk", order=4, id="app-title"),
                 ],
                 gap="xs",
@@ -286,12 +286,12 @@ def update_navbar_header(collapsed, scheme):
     palette = PALETTE_DARK if scheme == "dark" else PALETTE_LIGHT
     if collapsed:
         return (
-            DashIconify(icon="radix-icons:shield", width=24, id="logo-icon", color=palette["primary"]),
+            DashIconify(icon="gravity-ui:nodes-down", width=24, id="logo-icon", color=palette["primary"]),
             "center",
         )
     return (
         [
-            DashIconify(icon="radix-icons:shield", width=24, id="logo-icon", color=palette["primary"]),
+            DashIconify(icon="gravity-ui:nodes-down", width=24, id="logo-icon", color=palette["primary"]),
             dmc.Title("CerberusRisk", order=4, c=palette["primary"]),
         ],
         "flex-start",
