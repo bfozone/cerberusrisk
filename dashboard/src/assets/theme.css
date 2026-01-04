@@ -64,6 +64,26 @@
     transition: transform 0.2s ease, width 0.2s ease;
 }
 
+/* Mobile FAB button */
+.mantine-Affix-root {
+    z-index: 1000;
+}
+
+/* FAB shadow and hover */
+#mobile-open {
+    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+#mobile-open:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 16px rgba(139, 92, 246, 0.5);
+}
+
+#mobile-open:active {
+    transform: scale(0.95);
+}
+
 /* NavLink hover and active states */
 .mantine-NavLink-root {
     transition: background-color 0.15s ease;
