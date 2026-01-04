@@ -18,13 +18,22 @@ server = app.server
 def nav_link(label, href, icon, pathname, collapsed=False):
     """Single reusable nav link component."""
     active = pathname == href if href == "/" else pathname.startswith(href)
+    if collapsed:
+        return dmc.NavLink(
+            label=None,
+            href=href,
+            leftSection=None,
+            children=DashIconify(icon=icon, width=20),
+            active=active,
+            variant="light",
+            styles={"root": {"justifyContent": "center"}, "body": {"flex": "none"}},
+        )
     return dmc.NavLink(
-        label=None if collapsed else label,
+        label=label,
         href=href,
-        leftSection=DashIconify(icon=icon, width=20 if collapsed else 18),
+        leftSection=DashIconify(icon=icon, width=18),
         active=active,
         variant="light",
-        style={"justifyContent": "center"} if collapsed else None,
     )
 
 
