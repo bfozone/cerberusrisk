@@ -6,6 +6,7 @@ from src.services.risk_models import (
     BetaMetrics,
     ComparativeRiskMetrics,
     FactorExposures,
+    MonteCarloFanChart,
     MonteCarloResult,
     PerformanceAttribution,
     PerformanceMetrics,
@@ -486,35 +487,79 @@ class RiskEngine:
         histories: dict[str, list[dict]],
         weights: dict[str, float],
         simulations: int = 10000,
-        horizon: int = 1,
+        horizon: int = 252,
     ) -> MonteCarloResult | None:
-        """Simulate portfolio returns and calculate VaR distribution."""
+        """Simulate portfolio paths using GBM and calculate VaR distribution.
+
+        Uses Geometric Brownian Motion: dS/S = μdt + σdW
+        Returns fan chart percentile bands and terminal distribution.
+        """
         returns = self.calculate_portfolio_returns(histories, weights)
         if returns is None:
             return None
 
-        # Fit to historical distribution
-        mean = np.mean(returns) * horizon
-        std = np.std(returns) * np.sqrt(horizon)
+        # Estimate parameters from historical returns
+        mu = np.mean(returns)  # daily drift
+        sigma = np.std(returns)  # daily volatility
 
-        # Generate simulations
+        # Generate random walks for all simulations
         np.random.seed(42)
-        simulated = np.random.normal(mean, std, simulations)
+        dt = 1  # 1 day steps
+        random_shocks = np.random.normal(0, 1, (simulations, horizon))
 
-        # Calculate VaR metrics from simulations
-        var_95 = -np.percentile(simulated, 5)
-        var_99 = -np.percentile(simulated, 1)
-        cvar_95 = -np.mean(simulated[simulated <= np.percentile(simulated, 5)])
+        # GBM simulation: S(t+dt) = S(t) * exp((mu - 0.5*sigma^2)*dt + sigma*sqrt(dt)*Z)
+        # Start at 100 (normalized portfolio value)
+        log_returns = (mu - 0.5 * sigma**2) * dt + sigma * np.sqrt(dt) * random_shocks
+        cumulative_returns = np.cumsum(log_returns, axis=1)
 
-        # Percentiles for histogram (5th, 25th, 50th, 75th, 95th)
-        percentiles = [float(np.percentile(simulated, p)) for p in [5, 25, 50, 75, 95]]
+        # Convert to price paths (starting at 100)
+        paths = 100 * np.exp(cumulative_returns)
+
+        # Add starting point (day 0 = 100)
+        paths = np.column_stack([np.full(simulations, 100), paths])
+
+        # Calculate percentile bands at each time step
+        days = list(range(horizon + 1))
+        p1 = [round(float(np.percentile(paths[:, i], 1)), 2) for i in range(horizon + 1)]
+        p5 = [round(float(np.percentile(paths[:, i], 5)), 2) for i in range(horizon + 1)]
+        p25 = [round(float(np.percentile(paths[:, i], 25)), 2) for i in range(horizon + 1)]
+        p50 = [round(float(np.percentile(paths[:, i], 50)), 2) for i in range(horizon + 1)]
+        p75 = [round(float(np.percentile(paths[:, i], 75)), 2) for i in range(horizon + 1)]
+        p95 = [round(float(np.percentile(paths[:, i], 95)), 2) for i in range(horizon + 1)]
+        p99 = [round(float(np.percentile(paths[:, i], 99)), 2) for i in range(horizon + 1)]
+
+        # Terminal distribution (final values as returns from 100)
+        terminal_values = paths[:, -1]
+        terminal_returns = (terminal_values - 100) / 100  # as decimal returns
+
+        # VaR and CVaR at horizon (as percentage loss from starting value)
+        var_95 = 100 - np.percentile(terminal_values, 5)  # 5th percentile of value = 95% VaR
+        var_99 = 100 - np.percentile(terminal_values, 1)  # 1st percentile of value = 99% VaR
+        cvar_95 = 100 - np.mean(terminal_values[terminal_values <= np.percentile(terminal_values, 5)])
+        cvar_99 = 100 - np.mean(terminal_values[terminal_values <= np.percentile(terminal_values, 1)])
+
+        # Sample terminal distribution for histogram (500 random samples)
+        sample_indices = np.random.choice(simulations, min(500, simulations), replace=False)
+        terminal_sample = [round(float(terminal_values[i]), 2) for i in sample_indices]
 
         return MonteCarloResult(
             simulations=simulations,
-            var_95=round(var_95 * 100, 2),
-            var_99=round(var_99 * 100, 2),
-            cvar_95=round(cvar_95 * 100, 2),
-            percentiles=[round(p * 100, 2) for p in percentiles],
+            horizon=horizon,
+            var_95=round(var_95, 2),
+            var_99=round(var_99, 2),
+            cvar_95=round(cvar_95, 2),
+            cvar_99=round(cvar_99, 2),
+            fan_chart=MonteCarloFanChart(
+                days=days,
+                p1=p1,
+                p5=p5,
+                p25=p25,
+                p50=p50,
+                p75=p75,
+                p95=p95,
+                p99=p99,
+            ),
+            terminal_distribution=terminal_sample,
         )
 
     def calculate_factor_exposures(

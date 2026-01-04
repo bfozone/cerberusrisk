@@ -11,5 +11,6 @@ from src.components.charts import (
     scatter_chart,
     grouped_bar_chart,
     correlation_heatmap,
+    fan_chart,
 )
 from src.components.tables import data_table

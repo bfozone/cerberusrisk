@@ -519,3 +519,120 @@ def grouped_bar_chart(
         **chart_layout(height=height, scheme=scheme, **layout_kwargs),
     )
     return fig
+
+
+def fan_chart(
+    days: list,
+    percentiles: dict,  # {"p1": [...], "p5": [...], "p25": [...], "p50": [...], "p75": [...], "p95": [...], "p99": [...]}
+    height: int = 400,
+    scheme: str = "dark",
+    **layout_kwargs,
+) -> go.Figure:
+    """Create a Monte Carlo fan chart with percentile bands.
+
+    Shows confidence cone for portfolio value projection.
+    """
+    settings = THEME_SETTINGS.get(scheme, THEME_SETTINGS["dark"])
+
+    fig = go.Figure()
+
+    # Define band colors (from outer to inner)
+    band_configs = [
+        ("p1", "p99", "rgba(251, 113, 133, 0.15)", "1%-99%"),  # Outer band (red tint)
+        ("p5", "p95", "rgba(251, 191, 36, 0.2)", "5%-95%"),    # VaR band (amber tint)
+        ("p25", "p75", "rgba(167, 139, 250, 0.25)", "25%-75%"),  # Inner band (purple tint)
+    ]
+
+    # Add bands from outer to inner (so inner overlays outer)
+    for lower_key, upper_key, fill_color, name in band_configs:
+        lower = percentiles[lower_key]
+        upper = percentiles[upper_key]
+
+        # Upper bound
+        fig.add_trace(
+            go.Scatter(
+                x=days,
+                y=upper,
+                mode="lines",
+                line=dict(width=0),
+                showlegend=False,
+                hoverinfo="skip",
+            )
+        )
+
+        # Lower bound with fill to upper
+        fig.add_trace(
+            go.Scatter(
+                x=days,
+                y=lower,
+                mode="lines",
+                line=dict(width=0),
+                fill="tonexty",
+                fillcolor=fill_color,
+                name=name,
+                hovertemplate=f"Day %{{x}}<br>{name}: %{{y:.1f}}<extra></extra>",
+            )
+        )
+
+    # Add median line (p50)
+    fig.add_trace(
+        go.Scatter(
+            x=days,
+            y=percentiles["p50"],
+            mode="lines",
+            line=dict(color=CHART_COLORS["primary"], width=2),
+            name="Median",
+            hovertemplate="Day %{x}<br>Median: %{y:.1f}<extra></extra>",
+        )
+    )
+
+    # Add starting line at 100 (no label - already in y-axis title)
+    fig.add_hline(
+        y=100,
+        line_dash="dot",
+        line_color=settings["font_secondary"],
+        line_width=1,
+    )
+
+    # Add VaR lines at terminal values
+    var_95_terminal = percentiles["p5"][-1]  # 5th percentile = VaR 95%
+    var_99_terminal = percentiles["p1"][-1]  # 1st percentile = VaR 99%
+
+    fig.add_hline(
+        y=var_95_terminal,
+        line_dash="dash",
+        line_color=CHART_COLORS["warning"],
+        line_width=1,
+        annotation_text=f"VaR 95%: {var_95_terminal:.1f}",
+        annotation_position="right",
+        annotation_font_size=10,
+        annotation_font_color=CHART_COLORS["warning"],
+    )
+
+    fig.add_hline(
+        y=var_99_terminal,
+        line_dash="dash",
+        line_color=CHART_COLORS["negative"],
+        line_width=1,
+        annotation_text=f"VaR 99%: {var_99_terminal:.1f}",
+        annotation_position="right",
+        annotation_font_size=10,
+        annotation_font_color=CHART_COLORS["negative"],
+    )
+
+    layout = chart_layout(height=height, scheme=scheme, **layout_kwargs)
+    # Add extra right margin for VaR labels
+    layout["margin"]["r"] = 100
+    # Override legend position for horizontal display above chart
+    layout["legend"].update(
+        orientation="h",
+        yanchor="bottom",
+        y=1.02,
+        xanchor="center",
+        x=0.5,
+    )
+    layout["xaxis_title"] = "Trading Days"
+    layout["yaxis_title"] = "Portfolio Value (Start = 100)"
+    fig.update_layout(**layout)
+
+    return fig

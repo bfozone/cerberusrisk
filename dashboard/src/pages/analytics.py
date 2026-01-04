@@ -35,6 +35,7 @@ from src.components import (
     histogram_chart,
     scatter_chart,
     grouped_bar_chart,
+    fan_chart,
 )
 from src.components.charts import CHART_COLORS
 
@@ -441,22 +442,22 @@ def render_market_risk_tab(portfolio_id, scheme):
     port_risk = risk["portfolio"] if risk else None
     bench_risk = risk["benchmark"] if risk else None
 
-    # Risk comparison cards
+    # Risk comparison cards (annualized metrics)
     if port_risk and bench_risk:
         risk_cards = dmc.Stack([
-            dmc.Title("VaR 95%", order=6),
+            dmc.Title("Annual VaR 95%", order=6),
             comparison_row(port_risk["var_95"], bench_risk["var_95"], "VaR 95%", "%", invert_delta=True),
-            dmc.Title("Volatility", order=6, mt="sm"),
+            dmc.Title("Annual Volatility", order=6, mt="sm"),
             comparison_row(port_risk["volatility"], bench_risk["volatility"], "Volatility", "%", invert_delta=True),
             dmc.Title("Sharpe Ratio", order=6, mt="sm"),
             comparison_row(port_risk["sharpe"], bench_risk["sharpe"], "Sharpe", "", invert_delta=False),
         ], gap="xs")
     elif port_risk:
         risk_cards = metric_cards_row([
-            ("VaR 95%", f"{port_risk['var_95']}%", "orange"),
-            ("VaR 99%", f"{port_risk['var_99']}%", "red"),
-            ("CVaR 95%", f"{port_risk['cvar_95']}%", "orange"),
-            ("Volatility", f"{port_risk['volatility']}%", "blue"),
+            ("Ann. VaR 95%", f"{port_risk['var_95']}%", "orange"),
+            ("Ann. VaR 99%", f"{port_risk['var_99']}%", "red"),
+            ("Ann. CVaR 95%", f"{port_risk['cvar_95']}%", "orange"),
+            ("Ann. Volatility", f"{port_risk['volatility']}%", "blue"),
             ("Sharpe", f"{port_risk['sharpe']}", "green" if port_risk["sharpe"] > 0.5 else "gray"),
             ("Max DD", f"{port_risk['max_drawdown']}%", "red"),
         ], span=2)
@@ -493,9 +494,7 @@ def render_market_risk_tab(portfolio_id, scheme):
         tail_cards = metric_cards_row([
             ("Skewness", f"{tail['skewness']:.3f}", "blue"),
             ("Kurtosis", f"{tail['kurtosis']:.3f}", "blue"),
-            ("MC VaR 95%", f"{mc['var_95']}%" if mc else "—", "orange"),
-            ("MC CVaR 95%", f"{mc['cvar_95']}%" if mc else "—", "red"),
-        ], span=3)
+        ], span=6)
 
         worst_headers = ["Date", "Return"]
         worst_rows = [[d["date"], f"{d['return_pct']:+.2f}%"] for d in tail["worst_days"]]
@@ -506,17 +505,44 @@ def render_market_risk_tab(portfolio_id, scheme):
         best_colors = [[None, "green"] for _ in tail["best_days"]]
         best_table = data_table(worst_headers, best_rows, best_colors)
 
-    # Monte Carlo histogram
+    # Monte Carlo VaR/CVaR metrics (4 cards) - 1-year (252-day) horizon
+    mc_cards = None
+    mc_fan_fig = empty_figure(scheme=scheme)
+    mc_hist_fig = empty_figure(scheme=scheme)
     if mc:
-        mc_fig = histogram_chart(
-            mc["percentiles"],
-            bins=5,
-            var_line=mc["var_95"],
-            scheme=scheme,
-            xaxis_title="Simulated Return %",
-        )
-    else:
-        mc_fig = empty_figure(scheme=scheme)
+        mc_cards = metric_cards_row([
+            ("1Y VaR 95%", f"{mc['var_95']:.2f}%", "orange"),
+            ("1Y VaR 99%", f"{mc['var_99']:.2f}%", "red"),
+            ("1Y CVaR 95%", f"{mc['cvar_95']:.2f}%", "orange"),
+            ("1Y CVaR 99%", f"{mc['cvar_99']:.2f}%", "red"),
+        ], span=3)
+
+        # Fan chart (confidence cone)
+        if mc.get("fan_chart"):
+            fc = mc["fan_chart"]
+            mc_fan_fig = fan_chart(
+                days=fc["days"],
+                percentiles={
+                    "p1": fc["p1"],
+                    "p5": fc["p5"],
+                    "p25": fc["p25"],
+                    "p50": fc["p50"],
+                    "p75": fc["p75"],
+                    "p95": fc["p95"],
+                    "p99": fc["p99"],
+                },
+                height=400,
+                scheme=scheme,
+            )
+
+        # Terminal distribution histogram
+        if mc.get("terminal_distribution"):
+            mc_hist_fig = histogram_chart(
+                mc["terminal_distribution"],
+                bins=30,
+                scheme=scheme,
+                xaxis_title="Terminal Value (Start = 100)",
+            )
 
     # VaR backtest chart
     if backtest:
@@ -543,7 +569,7 @@ def render_market_risk_tab(portfolio_id, scheme):
             pct_contrib,
             color=CHART_COLORS["negative"],
             text=[f"{v:.1f}%" for v in pct_contrib],
-            yaxis_title="% Contribution to VaR",
+            yaxis_title="% Contribution to Annual VaR 95%",
             showlegend=False,
             scheme=scheme,
         )
@@ -563,8 +589,8 @@ def render_market_risk_tab(portfolio_id, scheme):
 
     return dmc.Stack(
         [
-            # Risk metrics comparison
-            dmc.Title("Risk Metrics (Portfolio vs Benchmark)", order=5),
+            # Risk metrics comparison (annualized)
+            dmc.Title("Annualized Risk Metrics (Portfolio vs Benchmark)", order=5),
             risk_cards,
 
             dmc.Divider(my="md"),
@@ -577,23 +603,41 @@ def render_market_risk_tab(portfolio_id, scheme):
 
             dmc.Divider(my="md"),
 
-            # Tail risk and Monte Carlo
-            dmc.Title("Tail Risk & Monte Carlo", order=5),
+            # Tail risk section
+            dmc.Title("Tail Risk Analysis", order=5),
             tail_cards if tail_cards else dmc.Text("Unable to load tail risk", c="dimmed"),
             dmc.Grid(
                 [
                     dmc.GridCol(
                         dmc.Stack([dmc.Title("Worst Days", order=6), worst_table], gap="sm") if worst_table else None,
-                        span={"base": 12, "md": 4},
+                        span={"base": 12, "md": 6},
                     ),
                     dmc.GridCol(
                         dmc.Stack([dmc.Title("Best Days", order=6), best_table], gap="sm") if best_table else None,
-                        span={"base": 12, "md": 4},
+                        span={"base": 12, "md": 6},
+                    ),
+                ],
+                gutter="md",
+            ),
+
+            dmc.Divider(my="md"),
+
+            # Monte Carlo simulation section (1-year forward projection)
+            dmc.Title("Monte Carlo Simulation (10k paths, 1-year horizon)", order=5),
+            mc_cards if mc_cards else dmc.Text("Unable to load Monte Carlo data", c="dimmed"),
+            dmc.Grid(
+                [
+                    dmc.GridCol(
+                        dmc.Stack([
+                            dmc.Title("Confidence Cone (Fan Chart)", order=6),
+                            dcc.Graph(figure=mc_fan_fig, config={"displayModeBar": False}),
+                        ], gap="sm"),
+                        span={"base": 12, "md": 8},
                     ),
                     dmc.GridCol(
                         dmc.Stack([
-                            dmc.Title("Monte Carlo (10k sims)", order=6),
-                            dcc.Graph(figure=mc_fig, config={"displayModeBar": False}),
+                            dmc.Title("1-Year Terminal Distribution", order=6),
+                            dcc.Graph(figure=mc_hist_fig, config={"displayModeBar": False}),
                         ], gap="sm"),
                         span={"base": 12, "md": 4},
                     ),
@@ -603,8 +647,8 @@ def render_market_risk_tab(portfolio_id, scheme):
 
             dmc.Divider(my="md"),
 
-            # VaR backtest
-            dmc.Title("VaR Backtest (60-day rolling)", order=5),
+            # VaR backtest (annualized VaR 95%)
+            dmc.Title("VaR 95% Backtest (60-day rolling, annualized)", order=5),
             dmc.Text(breach_text, c="dimmed", size="sm") if breach_text else None,
             dcc.Graph(figure=backtest_fig, config={"displayModeBar": False}),
 
@@ -615,7 +659,7 @@ def render_market_risk_tab(portfolio_id, scheme):
                 [
                     dmc.GridCol(
                         dmc.Stack([
-                            dmc.Title("Risk Contribution", order=5),
+                            dmc.Title("Risk Contribution (Annual VaR 95%)", order=5),
                             dcc.Graph(figure=contrib_fig, config={"displayModeBar": False}),
                         ], gap="sm"),
                         span={"base": 12, "md": 6},

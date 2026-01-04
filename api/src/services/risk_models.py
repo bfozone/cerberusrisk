@@ -168,9 +168,25 @@ class WhatIfResult(BaseModel):
     delta: dict[str, float]
 
 
+class MonteCarloFanChart(BaseModel):
+    """Fan chart data for Monte Carlo simulation paths."""
+
+    days: list[int]  # 0, 1, 2, ..., horizon
+    p1: list[float]  # 1st percentile
+    p5: list[float]  # 5th percentile
+    p25: list[float]  # 25th percentile
+    p50: list[float]  # 50th percentile (median)
+    p75: list[float]  # 75th percentile
+    p95: list[float]  # 95th percentile
+    p99: list[float]  # 99th percentile
+
+
 class MonteCarloResult(BaseModel):
     simulations: int
+    horizon: int  # days
     var_95: float
     var_99: float
     cvar_95: float
-    percentiles: list[float]
+    cvar_99: float
+    fan_chart: MonteCarloFanChart
+    terminal_distribution: list[float]  # final values for histogram
