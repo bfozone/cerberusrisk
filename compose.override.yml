@@ -1,6 +1,11 @@
 # Local development overrides (auto-loaded by podman/docker compose)
 # NOT used in production (Coolify ignores this file)
 services:
+  api:
+    userns_mode: keep-id
+    volumes:
+      - ./api/src:/app/src
+
   dashboard:
     environment:
       DEBUG: "true"

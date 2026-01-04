@@ -296,3 +296,11 @@ class MarketDataService:
                     results[ticker] = None
 
         return results
+
+    def get_sectors(self, tickers: list[str]) -> dict[str, str]:
+        """Get sector mapping for tickers."""
+        info = self.get_ticker_info(tickers)
+        return {
+            ticker: data.get("sector", "Unknown") if data else "Unknown"
+            for ticker, data in info.items()
+        }

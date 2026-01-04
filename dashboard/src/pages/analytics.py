@@ -22,6 +22,9 @@ from src.api import (
     get_monte_carlo,
     get_factor_exposures,
     get_performance,
+    get_gips_metrics,
+    get_esg_metrics,
+    get_guidelines,
 )
 from src.components import (
     metric_card,
@@ -118,7 +121,7 @@ def layout():
                 gap="lg",
             ),
 
-            # 7 Tabs
+            # 10 Tabs
             dmc.Tabs(
                 id="analytics-tabs",
                 value="summary",
@@ -126,7 +129,10 @@ def layout():
                     dmc.TabsList([
                         dmc.TabsTab("Summary", value="summary"),
                         dmc.TabsTab("Performance", value="performance"),
+                        dmc.TabsTab("GIPS", value="gips"),
                         dmc.TabsTab("Market Risk", value="market-risk"),
+                        dmc.TabsTab("ESG", value="esg"),
+                        dmc.TabsTab("Guidelines", value="guidelines"),
                         dmc.TabsTab("Factors", value="factors"),
                         dmc.TabsTab("Concentration", value="concentration"),
                         dmc.TabsTab("Stress Testing", value="stress"),
@@ -134,7 +140,10 @@ def layout():
                     ]),
                     dmc.TabsPanel(html.Div(id="summary-content"), value="summary", pt="md"),
                     dmc.TabsPanel(html.Div(id="performance-content"), value="performance", pt="md"),
+                    dmc.TabsPanel(html.Div(id="gips-content"), value="gips", pt="md"),
                     dmc.TabsPanel(html.Div(id="market-risk-content"), value="market-risk", pt="md"),
+                    dmc.TabsPanel(html.Div(id="esg-content"), value="esg", pt="md"),
+                    dmc.TabsPanel(html.Div(id="guidelines-content"), value="guidelines", pt="md"),
                     dmc.TabsPanel(html.Div(id="factors-content"), value="factors", pt="md"),
                     dmc.TabsPanel(html.Div(id="concentration-content"), value="concentration", pt="md"),
                     dmc.TabsPanel(html.Div(id="stress-content"), value="stress", pt="md"),
@@ -930,6 +939,725 @@ def update_stress_results(scenario_id, portfolio_id, scheme):
             pnl_summary,
         ],
         gap="md",
+    )
+
+
+# ============================================================================
+# GIPS TAB
+# ============================================================================
+
+
+def _render_gips_governance(gips: dict) -> dmc.Stack:
+    """Render GIPS Governance sub-tab: composite overview and compliance framework."""
+    return dmc.Stack(
+        [
+            dmc.Title("Composite Governance", order=5),
+            dmc.Text("Compliance framework and reporting structure", c="dimmed", size="sm"),
+            dmc.SimpleGrid(
+                [
+                    dmc.Card(
+                        [
+                            dmc.Text("Composite Information", fw=500, size="sm"),
+                            dmc.Divider(my="xs"),
+                            dmc.Text(f"Inception Date: {gips['inception_date']}", size="sm"),
+                            dmc.Text(f"Reporting Currency: {gips['reporting_currency']}", size="sm"),
+                            dmc.Text(f"Valuation Frequency: Daily", size="sm", c="dimmed"),
+                        ],
+                        withBorder=True,
+                        padding="md",
+                    ),
+                    dmc.Card(
+                        [
+                            dmc.Text("Fee Structure", fw=500, size="sm"),
+                            dmc.Divider(my="xs"),
+                            dmc.Text(f"Schedule: {gips['fee_schedule']}", size="sm"),
+                            dmc.Text("Calculation: Prorated daily", size="sm", c="dimmed"),
+                            dmc.Text("Accrual: End of period", size="sm", c="dimmed"),
+                        ],
+                        withBorder=True,
+                        padding="md",
+                    ),
+                    dmc.Card(
+                        [
+                            dmc.Text("Benchmark", fw=500, size="sm"),
+                            dmc.Divider(my="xs"),
+                            dmc.Text("Index: S&P 500 (SPY)", size="sm"),
+                            dmc.Text("Type: Total return", size="sm", c="dimmed"),
+                            dmc.Text("Rebalancing: Quarterly", size="sm", c="dimmed"),
+                        ],
+                        withBorder=True,
+                        padding="md",
+                    ),
+                    dmc.Card(
+                        [
+                            dmc.Text("Methodology", fw=500, size="sm"),
+                            dmc.Divider(my="xs"),
+                            dmc.Text("Return: Time-Weighted (TWR)", size="sm"),
+                            dmc.Text("Linking: Geometric", size="sm", c="dimmed"),
+                            dmc.Text("Cash Flows: None assumed", size="sm", c="dimmed"),
+                        ],
+                        withBorder=True,
+                        padding="md",
+                    ),
+                ],
+                cols={"base": 1, "sm": 2, "md": 4},
+                spacing="md",
+            ),
+            dmc.Alert(
+                [
+                    dmc.Text("GIPS Compliance Statement", fw=500, size="sm"),
+                    dmc.Text(
+                        "This composite claims compliance with the Global Investment Performance Standards (GIPS). "
+                        "Returns are presented gross and net of management fees. "
+                        "Performance data is calculated using time-weighted returns with geometric linking.",
+                        size="xs",
+                        c="dimmed",
+                        mt="xs",
+                    ),
+                ],
+                color="blue",
+                variant="light",
+            ),
+        ],
+        gap="md",
+    )
+
+
+def _render_gips_performance(gips: dict, scheme: str) -> dmc.Stack:
+    """Render GIPS Performance sub-tab: returns analysis."""
+    # Annualized return cards
+    ann_cards = metric_cards_row(
+        [
+            ("Gross Return", f"{gips['annualized_return_gross']}%",
+             "green" if gips['annualized_return_gross'] > 0 else "red"),
+            ("Net Return", f"{gips['annualized_return_net']}%",
+             "green" if gips['annualized_return_net'] > 0 else "red"),
+            ("Benchmark", f"{gips['annualized_benchmark']}%", "gray"),
+            ("Excess Return", f"{gips['annualized_excess']:+.2f}%",
+             "green" if gips['annualized_excess'] > 0 else "red"),
+        ],
+        span=3,
+    )
+
+    # Cumulative returns chart
+    cumulative_fig = bar_chart(
+        ["Gross", "Net", "Benchmark"],
+        [gips['cumulative_gross'], gips['cumulative_net'], gips['cumulative_benchmark']],
+        color=[CHART_COLORS["positive"], CHART_COLORS["secondary"], CHART_COLORS["info"]],
+        text=[f"{gips['cumulative_gross']:.1f}%", f"{gips['cumulative_net']:.1f}%", f"{gips['cumulative_benchmark']:.1f}%"],
+        yaxis_title="Cumulative Return %",
+        scheme=scheme,
+    )
+
+    # Calendar year returns table
+    cal_years = gips.get("calendar_year_returns", [])
+    cal_headers = ["Year", "Gross %", "Net %", "Benchmark %", "Excess %"]
+    cal_rows = []
+    cal_colors = []
+    for yr in cal_years:
+        excess_color = "green" if yr["excess"] > 0 else "red"
+        cal_rows.append([
+            str(yr["year"]),
+            f"{yr['gross']:+.2f}%",
+            f"{yr['net']:+.2f}%",
+            f"{yr['benchmark']:+.2f}%",
+            f"{yr['excess']:+.2f}%",
+        ])
+        cal_colors.append([None, None, None, None, excess_color])
+
+    # Rolling returns chart
+    rolling = gips.get("rolling_returns", [])
+    rolling_chart = empty_figure(scheme=scheme)
+    if rolling:
+        dates = [r["date"] for r in rolling]
+        portfolio_vals = [r["rolling_12m"] for r in rolling]
+        bench_vals = [r.get("benchmark_12m") for r in rolling]
+        y_series = {"Portfolio (12M)": portfolio_vals}
+        if any(v is not None for v in bench_vals):
+            y_series["Benchmark (12M)"] = [v if v is not None else 0 for v in bench_vals]
+        rolling_chart = line_chart(
+            dates,
+            y_series,
+            scheme=scheme,
+        )
+
+    return dmc.Stack(
+        [
+            dmc.Title("Annualized Returns", order=5),
+            ann_cards,
+            dmc.Grid(
+                [
+                    dmc.GridCol(
+                        dmc.Stack([
+                            dmc.Title("Cumulative Performance", order=6),
+                            dcc.Graph(figure=cumulative_fig, config={"displayModeBar": False}),
+                        ], gap="xs"),
+                        span={"base": 12, "md": 6},
+                    ),
+                    dmc.GridCol(
+                        dmc.Stack([
+                            dmc.Title("Calendar Year Returns", order=6),
+                            data_table(cal_headers, cal_rows, cal_colors) if cal_rows else dmc.Text("Insufficient history", c="dimmed"),
+                        ], gap="xs"),
+                        span={"base": 12, "md": 6},
+                    ),
+                ],
+                gutter="md",
+            ),
+            dmc.Title("Rolling 12-Month Returns", order=6),
+            dcc.Graph(figure=rolling_chart, config={"displayModeBar": False}) if rolling else dmc.Text("Requires 1+ year history", c="dimmed"),
+        ],
+        gap="md",
+    )
+
+
+def _render_gips_risk(gips: dict, scheme: str) -> dmc.Stack:
+    """Render GIPS Risk sub-tab: volatility and drawdown analysis."""
+    # Risk metrics cards
+    risk_cards = metric_cards_row(
+        [
+            ("Volatility", f"{gips['annualized_volatility']}%", "blue"),
+            ("Tracking Error", f"{gips['tracking_error']}%", "orange"),
+            ("Info Ratio", f"{gips['information_ratio']}" if gips.get('information_ratio') else "—",
+             "green" if gips.get('information_ratio') and gips['information_ratio'] > 0.5 else "gray"),
+            ("Sharpe", f"{gips['sharpe_ratio']}", "green" if gips['sharpe_ratio'] > 0.5 else "gray"),
+        ],
+        span=3,
+    )
+
+    # Drawdown cards
+    max_dd = gips.get("max_drawdown", 0)
+    curr_dd = gips.get("current_drawdown", 0)
+    dd_cards = metric_cards_row(
+        [
+            ("Max Drawdown", f"{max_dd:.2f}%", "red" if max_dd < -10 else "orange"),
+            ("Current Drawdown", f"{curr_dd:.2f}%", "red" if curr_dd < -5 else "green"),
+        ],
+        span=6,
+    )
+
+    # Drawdown chart
+    dd_series = gips.get("drawdown_series", [])
+    dd_chart = empty_figure(scheme=scheme)
+    if dd_series:
+        dates = [d["date"] for d in dd_series]
+        dd_vals = [d["drawdown"] for d in dd_series]
+        dd_chart = area_chart(
+            dates,
+            dd_vals,
+            color=CHART_COLORS["negative"],
+            scheme=scheme,
+        )
+
+    return dmc.Stack(
+        [
+            dmc.Title("Risk Metrics", order=5),
+            risk_cards,
+            dmc.Divider(my="sm"),
+            dmc.Title("Drawdown Analysis", order=5),
+            dd_cards,
+            dcc.Graph(figure=dd_chart, config={"displayModeBar": False}) if dd_series else dmc.Text("No drawdown data", c="dimmed"),
+        ],
+        gap="md",
+    )
+
+
+def _render_gips_representativeness(gips: dict, scheme: str) -> dmc.Stack:
+    """Render GIPS Representativeness sub-tab: composite integrity."""
+    comp = gips["composite_stats"]
+
+    # Composite stats cards
+    comp_cards = metric_cards_row(
+        [
+            ("Portfolios", str(comp["num_portfolios"]), "blue"),
+            ("Total AUM", f"${comp['total_aum'] / 1e6:.1f}M", "green"),
+            ("Largest Portfolio", f"{comp.get('largest_portfolio_pct', 0):.1f}%", "orange"),
+            ("Top 5 Concentration", f"{comp.get('top5_concentration_pct', 0):.1f}%", "blue"),
+        ],
+        span=3,
+    )
+
+    # Dispersion stats
+    has_dispersion = comp.get('dispersion') is not None
+    dispersion_text = f"Dispersion (Std Dev): {comp['dispersion']:.2f}%" if has_dispersion else "N/A (requires 6+ portfolios)"
+    dispersion_section = dmc.Card(
+        [
+            dmc.Title("Return Dispersion", order=6),
+            dmc.Text(dispersion_text, size="sm") if has_dispersion else dmc.Text(dispersion_text, size="sm", c="dimmed"),
+            dmc.Divider(my="xs"),
+            dmc.Group(
+                [
+                    dmc.Text(f"High: {comp['high_return']:.2f}%", c="green", size="sm"),
+                    dmc.Text(f"Median: {comp['median_return']:.2f}%", c="blue", size="sm"),
+                    dmc.Text(f"Low: {comp['low_return']:.2f}%", c="red", size="sm"),
+                ],
+                gap="md",
+            ),
+        ],
+        withBorder=True,
+        padding="md",
+    )
+
+    # Dispersion histogram
+    portfolio_returns = comp.get("portfolio_returns", [])
+    dispersion_chart = empty_figure(scheme=scheme)
+    if portfolio_returns:
+        dispersion_chart = histogram_chart(
+            portfolio_returns,
+            bins=8,
+            color=CHART_COLORS["primary"],
+            scheme=scheme,
+        )
+
+    return dmc.Stack(
+        [
+            dmc.Title("Composite Representativeness", order=5),
+            dmc.Text("Is the composite representative and stable?", c="dimmed", size="sm"),
+            comp_cards,
+            dmc.Grid(
+                [
+                    dmc.GridCol(dispersion_section, span={"base": 12, "md": 5}),
+                    dmc.GridCol(
+                        dmc.Stack([
+                            dmc.Title("Portfolio Return Distribution", order=6),
+                            dcc.Graph(figure=dispersion_chart, config={"displayModeBar": False}),
+                        ], gap="xs"),
+                        span={"base": 12, "md": 7},
+                    ),
+                ],
+                gutter="md",
+            ),
+        ],
+        gap="md",
+    )
+
+
+def _render_gips_disclosure(gips: dict) -> dmc.Stack:
+    """Render GIPS Disclosure Readiness sub-tab: compliance checklist."""
+    checklist = gips.get("disclosure_checklist", [])
+    history_days = gips.get("history_days", 0)
+
+    def status_badge(status: str) -> dmc.Badge:
+        color_map = {"pass": "green", "warning": "yellow", "fail": "red"}
+        label_map = {"pass": "✓ Pass", "warning": "⚠ Warning", "fail": "✗ Fail"}
+        status_str = str(status) if status else "unknown"
+        return dmc.Badge(label_map.get(status_str, status_str), color=color_map.get(status_str, "gray"), size="sm")
+
+    checklist_rows = []
+    for check_item in checklist:
+        item_status = check_item.get("status", "unknown") if isinstance(check_item, dict) else "unknown"
+        item_name = check_item.get("item", "Unknown") if isinstance(check_item, dict) else str(check_item)
+        item_detail = check_item.get("detail", "") if isinstance(check_item, dict) else ""
+        checklist_rows.append(
+            dmc.Group(
+                [
+                    status_badge(item_status),
+                    dmc.Stack(
+                        [
+                            dmc.Text(item_name, size="sm", fw=500),
+                            dmc.Text(item_detail, size="xs", c="dimmed"),
+                        ],
+                        gap=0,
+                    ),
+                ],
+                gap="md",
+            )
+        )
+
+    # Summary counts
+    pass_count = sum(1 for i in checklist if isinstance(i, dict) and i.get("status") == "pass")
+    warn_count = sum(1 for i in checklist if isinstance(i, dict) and i.get("status") == "warning")
+    fail_count = sum(1 for i in checklist if isinstance(i, dict) and i.get("status") == "fail")
+    total = len(checklist)
+
+    overall_color = "green" if fail_count == 0 and warn_count == 0 else ("yellow" if fail_count == 0 else "red")
+    overall_status = "Ready" if fail_count == 0 and warn_count == 0 else ("Review Needed" if fail_count == 0 else "Not Ready")
+
+    return dmc.Stack(
+        [
+            dmc.Title("Disclosure Readiness", order=5),
+            dmc.Text("Could we publish this composite today?", c="dimmed", size="sm"),
+            dmc.Group(
+                [
+                    dmc.Badge(overall_status, color=overall_color, size="lg"),
+                    dmc.Text(f"{pass_count}/{total} passed", size="sm"),
+                    dmc.Text(f"• {history_days} trading days of history", c="dimmed", size="sm"),
+                ],
+                gap="md",
+            ),
+            dmc.Divider(my="sm"),
+            dmc.Card(
+                [
+                    dmc.Title("Compliance Checklist", order=6),
+                    dmc.Stack(checklist_rows, gap="sm"),
+                ],
+                withBorder=True,
+                padding="md",
+            ),
+            dmc.Alert(
+                [
+                    dmc.Text("GIPS Requirements", fw=500, size="sm"),
+                    dmc.Text(
+                        "GIPS requires a minimum of 5 years of compliant performance history "
+                        "(or since inception if less than 5 years). Full 10-year history recommended for established composites.",
+                        size="xs",
+                        c="dimmed",
+                        mt="xs",
+                    ),
+                ],
+                color="gray",
+                variant="light",
+            ),
+        ],
+        gap="md",
+    )
+
+
+@callback(
+    Output("gips-content", "children"),
+    Input("selected-portfolio-store", "data"),
+    Input("color-scheme-store", "data"),
+)
+def render_gips_tab(portfolio_id, scheme):
+    """Render GIPS tab with 5 sub-sections."""
+    scheme = scheme or "dark"
+    if not portfolio_id:
+        return dmc.Text("Select a portfolio")
+
+    gips = get_gips_metrics(portfolio_id)
+    if not gips:
+        return dmc.Text("Unable to load GIPS metrics", c="dimmed")
+
+    return dmc.Stack(
+        [
+            dmc.Title("GIPS-Compliant Performance", order=4),
+            dmc.Text("Global Investment Performance Standards (GIPS) metrics", c="dimmed", size="sm"),
+            dmc.Tabs(
+                value="governance",
+                children=[
+                    dmc.TabsList(
+                        [
+                            dmc.TabsTab("Governance", value="governance"),
+                            dmc.TabsTab("Performance", value="performance"),
+                            dmc.TabsTab("Risk", value="risk"),
+                            dmc.TabsTab("Representativeness", value="representativeness"),
+                            dmc.TabsTab("Disclosure", value="disclosure"),
+                        ],
+                        grow=True,
+                    ),
+                    dmc.TabsPanel(_render_gips_governance(gips), value="governance", pt="md"),
+                    dmc.TabsPanel(_render_gips_performance(gips, scheme), value="performance", pt="md"),
+                    dmc.TabsPanel(_render_gips_risk(gips, scheme), value="risk", pt="md"),
+                    dmc.TabsPanel(_render_gips_representativeness(gips, scheme), value="representativeness", pt="md"),
+                    dmc.TabsPanel(_render_gips_disclosure(gips), value="disclosure", pt="md"),
+                ],
+            ),
+        ],
+        gap="sm",
+    )
+
+
+# ============================================================================
+# ESG TAB
+# ============================================================================
+
+
+@callback(
+    Output("esg-content", "children"),
+    Input("selected-portfolio-store", "data"),
+    Input("color-scheme-store", "data"),
+)
+def render_esg_tab(portfolio_id, scheme):
+    scheme = scheme or "dark"
+    if not portfolio_id:
+        return dmc.Text("Select a portfolio")
+
+    esg = get_esg_metrics(portfolio_id)
+    if not esg:
+        return dmc.Text("Unable to load ESG metrics", c="dimmed")
+
+    # Portfolio ESG score cards
+    def esg_color(score):
+        if score >= 70:
+            return "green"
+        elif score >= 50:
+            return "yellow"
+        else:
+            return "red"
+
+    esg_cards = metric_cards_row([
+        ("ESG Score", f"{esg['portfolio_esg_score']:.1f}", esg_color(esg['portfolio_esg_score'])),
+        ("Environmental", f"{esg['portfolio_environmental']:.1f}", esg_color(esg['portfolio_environmental'])),
+        ("Social", f"{esg['portfolio_social']:.1f}", esg_color(esg['portfolio_social'])),
+        ("Governance", f"{esg['portfolio_governance']:.1f}", esg_color(esg['portfolio_governance'])),
+    ], span=3)
+
+    # Carbon metrics
+    carbon_color = "green" if esg['carbon_vs_benchmark'] < 0 else "red"
+    carbon_cards = metric_cards_row([
+        ("WACI", f"{esg['portfolio_carbon_intensity']:.0f}", "blue"),
+        ("Benchmark WACI", f"{esg['benchmark_carbon_intensity']:.0f}", "gray"),
+        ("vs Benchmark", f"{esg['carbon_vs_benchmark']:+.1f}%", carbon_color),
+        ("Coverage", f"{esg['coverage_pct']:.0f}%", "blue"),
+    ], span=3)
+
+    # ESG pie chart by rating
+    rating_labels = list(esg['rating_distribution'].keys())
+    rating_values = list(esg['rating_distribution'].values())
+    rating_fig = pie_chart(rating_labels, rating_values, scheme=scheme) if rating_labels else empty_figure(scheme)
+
+    # Position ESG table
+    pos_headers = ["Ticker", "Weight", "ESG", "E", "S", "G", "Carbon", "Flag"]
+    pos_rows = []
+    pos_colors = []
+    for p in esg['positions']:
+        flag_text = "⚠" if p['controversy_flag'] else "✓"
+        flag_color = "red" if p['controversy_flag'] else "green"
+        pos_rows.append([
+            p['ticker'], f"{p['weight']:.1f}%", f"{p['esg_score']:.0f}",
+            f"{p['environmental']:.0f}", f"{p['social']:.0f}", f"{p['governance']:.0f}",
+            f"{p['carbon_intensity']:.0f}", flag_text
+        ])
+        pos_colors.append([
+            None, None, esg_color(p['esg_score']),
+            esg_color(p['environmental']), esg_color(p['social']), esg_color(p['governance']),
+            None, flag_color
+        ])
+
+    # Controversy details
+    flagged = [p for p in esg['positions'] if p['controversy_flag']]
+    controversy_section = None
+    if flagged:
+        controversy_items = [
+            dmc.ListItem([
+                dmc.Text(p['ticker'], fw=500),
+                dmc.Text(f": {p['controversy_details']}", c="dimmed", size="sm"),
+            ])
+            for p in flagged
+        ]
+        controversy_section = dmc.Alert(
+            [
+                dmc.Text(f"Controversy Flags ({len(flagged)})", fw=500),
+                dmc.List(controversy_items, size="sm"),
+            ],
+            color="red",
+            variant="light",
+        )
+
+    # Data source notice
+    data_notice = dmc.Alert(
+        [
+            dmc.Text("ESG Data Notice", fw=500),
+            dmc.Text("ESG scores are simulated for demonstration purposes. Production deployment would integrate with MSCI ESG, Sustainalytics, or similar data providers.", size="xs", c="dimmed"),
+            dmc.Text("WACI = Weighted Average Carbon Intensity (tCO2e / $M revenue)", size="xs", c="dimmed"),
+        ],
+        color="gray",
+        variant="light",
+    )
+
+    return dmc.Stack(
+        [
+            dmc.Title("ESG Analysis", order=4),
+            dmc.Text("Environmental, Social, and Governance metrics", c="dimmed", size="sm"),
+
+            dmc.Divider(my="md"),
+            dmc.Title("Portfolio ESG Scores", order=5),
+            esg_cards,
+
+            dmc.Divider(my="md"),
+            dmc.Title("Carbon Metrics", order=5),
+            carbon_cards,
+
+            dmc.Divider(my="md"),
+            dmc.Grid([
+                dmc.GridCol(
+                    dmc.Stack([
+                        dmc.Title("ESG Rating Distribution", order=5),
+                        dcc.Graph(figure=rating_fig, config={"displayModeBar": False}),
+                    ], gap="sm"),
+                    span={"base": 12, "md": 5},
+                ),
+                dmc.GridCol(
+                    dmc.Stack([
+                        dmc.Title("Position ESG Details", order=5),
+                        data_table(pos_headers, pos_rows, pos_colors),
+                    ], gap="sm"),
+                    span={"base": 12, "md": 7},
+                ),
+            ], gutter="md"),
+
+            controversy_section if controversy_section else None,
+
+            dmc.Divider(my="md"),
+            data_notice,
+        ],
+        gap="sm",
+    )
+
+
+# ============================================================================
+# GUIDELINES TAB
+# ============================================================================
+
+
+@callback(
+    Output("guidelines-content", "children"),
+    Input("selected-portfolio-store", "data"),
+    Input("color-scheme-store", "data"),
+)
+def render_guidelines_tab(portfolio_id, scheme):
+    scheme = scheme or "dark"
+    if not portfolio_id:
+        return dmc.Text("Select a portfolio")
+
+    report = get_guidelines(portfolio_id)
+    if not report:
+        return dmc.Text("Unable to load guidelines report", c="dimmed")
+
+    # Overall status badge
+    status_colors = {"compliant": "green", "warning": "yellow", "breach": "red"}
+    status_icons = {"compliant": "✓", "warning": "⚠", "breach": "✗"}
+    overall_color = status_colors.get(report['overall_status'], "gray")
+
+    # Summary cards
+    summary_cards = metric_cards_row([
+        ("Total Guidelines", f"{report['total_guidelines']}", "blue"),
+        ("Compliant", f"{report['compliant_count']}", "green"),
+        ("Warning", f"{report['warning_count']}", "yellow"),
+        ("Breach", f"{report['breach_count']}", "red"),
+    ], span=3)
+
+    # Guidelines detail table
+    def status_badge(status):
+        color = status_colors.get(status, "gray")
+        icon = status_icons.get(status, "?")
+        return f"{icon} {status.upper()}"
+
+    guide_headers = ["Guideline", "Status", "Current", "Limit", "Headroom"]
+    guide_rows = []
+    guide_colors = []
+
+    for g in report['guidelines']:
+        gd = g['guideline']
+        status = g['status']
+        color = status_colors.get(status, "gray")
+
+        # Format limit display
+        if gd['limit_type'] == 'range':
+            limit_str = f"{gd['limit_value']:.0f}% - {gd['limit_value_upper']:.0f}%"
+        elif gd['limit_type'] == 'max_count':
+            limit_str = f"≤ {gd['limit_value']:.0f}"
+        elif gd['limit_type'] == 'min_weight':
+            limit_str = f"≥ {gd['limit_value']:.1f}%"
+        else:
+            limit_str = f"≤ {gd['limit_value']:.1f}%"
+
+        # Format current value
+        if gd['limit_type'] == 'max_count':
+            current_str = f"{g['current_value']:.0f}"
+        else:
+            current_str = f"{g['current_value']:.1f}%"
+
+        headroom_str = f"{g['headroom']:+.1f}%" if gd['limit_type'] != 'max_count' else f"{g['headroom']:+.0f}"
+
+        guide_rows.append([
+            gd['name'],
+            status_badge(status),
+            current_str,
+            limit_str,
+            headroom_str,
+        ])
+        guide_colors.append([None, color, None, None, "green" if g['headroom'] > 0 else "red"])
+
+    # Breach details
+    breaches = [g for g in report['guidelines'] if g['status'] == 'breach']
+    breach_section = None
+    if breaches:
+        breach_items = []
+        for b in breaches:
+            details = b.get('breach_details', [])
+            for d in (details or []):
+                item_text = d.get('ticker') or d.get('sector') or "Portfolio"
+                breach_items.append(
+                    dmc.ListItem([
+                        dmc.Text(f"{b['guideline']['name']}: ", fw=500),
+                        dmc.Text(f"{item_text} at {d['current_value']:.1f}% (limit: {d['limit_value']:.1f}%)", c="red"),
+                    ])
+                )
+
+        if breach_items:
+            breach_section = dmc.Alert(
+                [
+                    dmc.Text("Guideline Breaches", fw=500),
+                    dmc.List(breach_items, size="sm"),
+                ],
+                color="red",
+                variant="light",
+            )
+
+    # Warning details
+    warnings = [g for g in report['guidelines'] if g['status'] == 'warning']
+    warning_section = None
+    if warnings:
+        warning_items = [
+            dmc.ListItem([
+                dmc.Text(f"{w['guideline']['name']}: ", fw=500),
+                dmc.Text(f"Currently at {w['current_value']:.1f}%, only {w['headroom']:.1f}% headroom to limit", c="orange"),
+            ])
+            for w in warnings
+        ]
+        warning_section = dmc.Alert(
+            [
+                dmc.Text("Approaching Limits", fw=500),
+                dmc.List(warning_items, size="sm"),
+            ],
+            color="yellow",
+            variant="light",
+        )
+
+    # Overall status card
+    status_card = dmc.Card(
+        [
+            dmc.Group([
+                dmc.Title("Compliance Status", order=4),
+                dmc.Badge(
+                    f"{status_icons[report['overall_status']]} {report['overall_status'].upper()}",
+                    color=overall_color,
+                    size="lg",
+                ),
+            ], justify="space-between"),
+            dmc.Text(f"Portfolio: {report['portfolio_name']}", c="dimmed", size="sm"),
+            dmc.Text(f"Checked: {report['check_timestamp'][:19]}", c="dimmed", size="xs"),
+        ],
+        withBorder=True,
+        padding="md",
+    )
+
+    return dmc.Stack(
+        [
+            status_card,
+
+            dmc.Divider(my="md"),
+            summary_cards,
+
+            breach_section if breach_section else None,
+            warning_section if warning_section else None,
+
+            dmc.Divider(my="md"),
+            dmc.Title("Guideline Details", order=5),
+            data_table(guide_headers, guide_rows, guide_colors),
+
+            dmc.Divider(my="md"),
+            dmc.Alert(
+                [
+                    dmc.Text("Guidelines Configuration", fw=500),
+                    dmc.Text("Investment guidelines are configured per fund/mandate. These demonstrate standard institutional limits.", size="xs", c="dimmed"),
+                ],
+                color="gray",
+                variant="light",
+            ),
+        ],
+        gap="sm",
     )
 
 

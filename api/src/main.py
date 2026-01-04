@@ -7,7 +7,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from src.config import settings
 from src.database import engine, SessionLocal, Base
 from src.seed import seed_portfolios
-from src.routers import portfolios, risk, risk_advanced, stress
+from src.routers import portfolios, risk, risk_advanced, stress, compliance
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -49,6 +49,7 @@ app.include_router(portfolios.router)
 app.include_router(risk.router)
 app.include_router(risk_advanced.router)
 app.include_router(stress.router)
+app.include_router(compliance.router)
 
 
 @app.get("/health")

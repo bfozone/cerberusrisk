@@ -224,3 +224,45 @@ def get_performance(portfolio_id: int, benchmark: str = "SPY"):
         return r.json()
     except Exception:
         return None
+
+
+# ============================================================================
+# GIPS, ESG, GUIDELINES API
+# ============================================================================
+
+
+def get_gips_metrics(portfolio_id: int, benchmark: str = "SPY", fee_bps: int = 50):
+    try:
+        r = requests.get(
+            f"{API_URL}/api/portfolios/{portfolio_id}/gips",
+            params={"benchmark": benchmark, "fee_bps": fee_bps},
+            timeout=60,
+        )
+        r.raise_for_status()
+        return r.json()
+    except Exception:
+        return None
+
+
+def get_esg_metrics(portfolio_id: int):
+    try:
+        r = requests.get(
+            f"{API_URL}/api/portfolios/{portfolio_id}/esg",
+            timeout=60,
+        )
+        r.raise_for_status()
+        return r.json()
+    except Exception:
+        return None
+
+
+def get_guidelines(portfolio_id: int):
+    try:
+        r = requests.get(
+            f"{API_URL}/api/portfolios/{portfolio_id}/guidelines",
+            timeout=60,
+        )
+        r.raise_for_status()
+        return r.json()
+    except Exception:
+        return None
