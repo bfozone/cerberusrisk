@@ -17,6 +17,7 @@ class Quote(BaseModel):
 class MarketDataService:
     PRICE_TTL = 900  # 15 minutes
     HISTORY_TTL = 86400  # 24 hours
+    INFO_TTL = 86400 * 7  # 7 days for sector info
 
     def __init__(self, redis_host: str = "localhost", redis_port: int = 6379):
         self.redis = redis.Redis(host=redis_host, port=redis_port, decode_responses=True)
@@ -186,6 +187,106 @@ class MarketDataService:
                                 self._cache_key(ticker), self.PRICE_TTL, quote.model_dump_json()
                             )
                             results[ticker] = quote
+                        else:
+                            results[ticker] = None
+                    except Exception:
+                        results[ticker] = None
+            except Exception:
+                for ticker in uncached:
+                    results[ticker] = None
+
+        return results
+
+    # ========================================================================
+    # ADVANCED DATA METHODS
+    # ========================================================================
+
+    def _info_key(self, ticker: str) -> str:
+        return f"info:{ticker}"
+
+    def _volume_key(self, ticker: str) -> str:
+        return f"volume:{ticker}"
+
+    def get_ticker_info(self, tickers: list[str]) -> dict[str, dict | None]:
+        """Get sector, industry, marketCap for each ticker."""
+        results = {}
+        uncached = []
+
+        for ticker in tickers:
+            if ticker == "CASH":
+                results[ticker] = {"sector": "Cash", "industry": "Cash", "marketCap": 0}
+                continue
+
+            cache_key = self._info_key(ticker)
+            cached = self.redis.get(cache_key)
+            if cached:
+                results[ticker] = json.loads(cached)
+            else:
+                uncached.append(ticker)
+
+        for ticker in uncached:
+            try:
+                stock = yf.Ticker(ticker)
+                info = stock.info
+                data = {
+                    "sector": info.get("sector", "Unknown"),
+                    "industry": info.get("industry", "Unknown"),
+                    "marketCap": info.get("marketCap", 0),
+                }
+                self.redis.setex(self._info_key(ticker), self.INFO_TTL, json.dumps(data))
+                results[ticker] = data
+            except Exception:
+                results[ticker] = None
+
+        return results
+
+    def get_volume_data(self, tickers: list[str], period: str = "3mo") -> dict[str, dict | None]:
+        """Get average volume and price for liquidity calculations."""
+        results = {}
+        uncached = []
+
+        for ticker in tickers:
+            if ticker == "CASH":
+                continue
+
+            cache_key = self._volume_key(ticker)
+            cached = self.redis.get(cache_key)
+            if cached:
+                results[ticker] = json.loads(cached)
+            else:
+                uncached.append(ticker)
+
+        if uncached:
+            try:
+                data = yf.download(
+                    uncached,
+                    period=period,
+                    progress=False,
+                    auto_adjust=True,
+                    threads=True,
+                )
+
+                for ticker in uncached:
+                    try:
+                        if len(uncached) == 1:
+                            volume_series = data["Volume"]
+                            close_series = data["Close"]
+                        else:
+                            volume_series = data["Volume"][ticker]
+                            close_series = data["Close"][ticker]
+
+                        volumes = volume_series.dropna()
+                        closes = close_series.dropna()
+
+                        if len(volumes) > 0 and len(closes) > 0:
+                            vol_data = {
+                                "avg_volume": float(volumes.mean()),
+                                "avg_price": float(closes.mean()),
+                            }
+                            self.redis.setex(
+                                self._volume_key(ticker), self.HISTORY_TTL, json.dumps(vol_data)
+                            )
+                            results[ticker] = vol_data
                         else:
                             results[ticker] = None
                     except Exception:

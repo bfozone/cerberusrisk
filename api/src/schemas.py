@@ -33,3 +33,10 @@ class PortfolioValueOut(BaseModel):
     portfolio_name: str
     positions: list[dict]
     total_value: float | None
+
+
+class DataInfoOut(BaseModel):
+    start_date: str
+    end_date: str
+    trading_days: int
+    period: str

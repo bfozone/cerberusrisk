@@ -394,3 +394,128 @@ def area_chart(
 
     fig.update_layout(**chart_layout(height=height, scheme=scheme, **layout_kwargs))
     return fig
+
+
+def histogram_chart(
+    values: list,
+    bins: int = 50,
+    var_line: float | None = None,
+    color: str | None = None,
+    height: int = 350,
+    scheme: str = "dark",
+    **layout_kwargs,
+) -> go.Figure:
+    """Create a histogram with optional VaR vertical line."""
+    fill_color = color or CHART_COLORS["primary"]
+
+    fig = go.Figure(
+        data=go.Histogram(
+            x=values,
+            nbinsx=bins,
+            marker_color=fill_color,
+            marker_line_width=0,
+            opacity=0.8,
+            hovertemplate="Return: %{x:.2f}%<br>Count: %{y}<extra></extra>",
+        )
+    )
+
+    # Add VaR line if specified
+    if var_line is not None:
+        fig.add_vline(
+            x=-var_line,
+            line_dash="dash",
+            line_color=CHART_COLORS["negative"],
+            line_width=2,
+            annotation_text=f"VaR: {var_line:.1f}%",
+            annotation_position="top",
+            annotation_font_color=CHART_COLORS["negative"],
+        )
+
+    fig.update_layout(**chart_layout(height=height, scheme=scheme, **layout_kwargs))
+    return fig
+
+
+def scatter_chart(
+    x: list,
+    y: list,
+    trendline: bool = False,
+    x_label: str = "X",
+    y_label: str = "Y",
+    height: int = 350,
+    scheme: str = "dark",
+    **layout_kwargs,
+) -> go.Figure:
+    """Create a scatter plot with optional regression trendline."""
+    import numpy as np
+
+    fig = go.Figure(
+        data=go.Scatter(
+            x=x,
+            y=y,
+            mode="markers",
+            marker=dict(
+                color=CHART_COLORS["primary"],
+                size=6,
+                opacity=0.6,
+            ),
+            hovertemplate=f"<b>{x_label}</b>: %{{x:.2f}}%<br><b>{y_label}</b>: %{{y:.2f}}%<extra></extra>",
+        )
+    )
+
+    # Add trendline
+    if trendline and len(x) > 1:
+        x_arr = np.array(x)
+        y_arr = np.array(y)
+        z = np.polyfit(x_arr, y_arr, 1)
+        p = np.poly1d(z)
+        x_line = np.linspace(min(x_arr), max(x_arr), 100)
+
+        fig.add_trace(
+            go.Scatter(
+                x=x_line.tolist(),
+                y=p(x_line).tolist(),
+                mode="lines",
+                line=dict(color=CHART_COLORS["secondary"], width=2, dash="dash"),
+                name="Trendline",
+                hoverinfo="skip",
+            )
+        )
+
+    fig.update_layout(
+        xaxis_title=x_label,
+        yaxis_title=y_label,
+        **chart_layout(height=height, scheme=scheme, **layout_kwargs),
+    )
+    return fig
+
+
+def grouped_bar_chart(
+    categories: list,
+    groups: dict,  # {"Group Name": [values], ...}
+    height: int = 350,
+    scheme: str = "dark",
+    **layout_kwargs,
+) -> go.Figure:
+    """Create a grouped bar chart for comparison."""
+    colors = CHART_COLORS["series"]
+
+    fig = go.Figure()
+
+    for i, (name, values) in enumerate(groups.items()):
+        color = colors[i % len(colors)]
+        fig.add_trace(
+            go.Bar(
+                x=categories,
+                y=values,
+                name=name,
+                marker_color=color,
+                marker_line_width=0,
+                marker_cornerradius=4,
+            )
+        )
+
+    fig.update_layout(
+        barmode="group",
+        **chart_layout(height=height, scheme=scheme, **layout_kwargs),
+    )
+    return fig
