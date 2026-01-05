@@ -1,46 +1,51 @@
-// Mermaid initialization for markdown documentation
-// Only activates on /docs page to avoid interfering with Dash callbacks
+// Mermaid renderer for CerberusRisk documentation
+// Converts ```mermaid code blocks to rendered diagrams
 
 (function() {
-    let mermaidLoaded = false;
+    'use strict';
 
-    function loadMermaid(callback) {
-        if (mermaidLoaded) {
-            if (typeof mermaid !== 'undefined') callback();
-            return;
-        }
+    let mermaidReady = false;
+    let renderPending = false;
 
-        const script = document.createElement('script');
-        script.src = 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js';
-        script.onload = function() {
-            mermaidLoaded = true;
-            callback();
-        };
-        script.onerror = function() {
-            console.error('Failed to load Mermaid');
-        };
-        document.head.appendChild(script);
+    // Load mermaid library
+    function loadMermaid() {
+        return new Promise((resolve, reject) => {
+            if (typeof mermaid !== 'undefined') {
+                resolve();
+                return;
+            }
+
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js';
+            script.onload = resolve;
+            script.onerror = reject;
+            document.head.appendChild(script);
+        });
     }
 
+    // Get theme config based on current color scheme
     function getThemeConfig() {
         const isDark = document.documentElement.getAttribute('data-mantine-color-scheme') === 'dark';
 
         return {
             startOnLoad: false,
             theme: isDark ? 'dark' : 'default',
+            securityLevel: 'loose',
             themeVariables: isDark ? {
                 primaryColor: '#a78bfa',
                 primaryTextColor: '#ffffff',
                 primaryBorderColor: '#6b5b95',
-                lineColor: '#c8c8d8',
-                secondaryColor: '#1a1a24',
-                tertiaryColor: '#0d0d12',
+                lineColor: '#a0a0b0',
+                secondaryColor: '#2a2a3a',
+                tertiaryColor: '#1a1a24',
                 background: '#1a1a24',
-                mainBkg: '#1a1a24',
+                mainBkg: '#2a2a3a',
                 nodeBorder: '#a78bfa',
                 clusterBkg: '#22222e',
-                titleColor: '#a78bfa',
-                edgeLabelBackground: '#1a1a24'
+                titleColor: '#e0e0e0',
+                edgeLabelBackground: '#2a2a3a',
+                textColor: '#e0e0e0',
+                nodeTextColor: '#ffffff'
             } : {
                 primaryColor: '#7c3aed',
                 primaryTextColor: '#1e1b2e',
@@ -49,147 +54,155 @@
                 secondaryColor: '#f5f3f7',
                 tertiaryColor: '#faf9fb',
                 background: '#ffffff',
-                mainBkg: '#ffffff',
+                mainBkg: '#f8f7fa',
                 nodeBorder: '#7c3aed',
                 clusterBkg: '#f8f7fa',
-                titleColor: '#7c3aed',
+                titleColor: '#1e1b2e',
                 edgeLabelBackground: '#ffffff'
             }
         };
     }
 
-    function renderMermaidDiagrams() {
-        if (typeof mermaid === 'undefined') {
-            console.warn('Mermaid not loaded yet');
-            return;
-        }
+    // Find and render mermaid diagrams
+    async function renderDiagrams() {
+        if (renderPending) return;
+        renderPending = true;
 
-        // Re-initialize mermaid with current theme
-        mermaid.initialize(getThemeConfig());
+        // Small delay to let DOM settle
+        await new Promise(r => setTimeout(r, 100));
 
-        // Find all code blocks
-        const codeBlocks = document.querySelectorAll('.markdown-body pre code');
-        console.log('Found code blocks:', codeBlocks.length);
+        try {
+            // Re-initialize mermaid with current theme
+            mermaid.initialize(getThemeConfig());
 
-        let diagramCount = 0;
+            // Find all pre > code elements
+            const codeBlocks = document.querySelectorAll('pre code, pre > code');
 
-        codeBlocks.forEach(function(code, index) {
-            const pre = code.parentElement;
-
-            // Skip if already processed
-            if (pre.dataset.mermaidProcessed === 'true') return;
-
-            const text = code.textContent.trim();
-
-            // Check if it's a mermaid diagram by content
             const mermaidKeywords = [
                 'flowchart', 'graph', 'sequenceDiagram', 'classDiagram',
                 'stateDiagram', 'erDiagram', 'gantt', 'pie', 'journey',
-                'gitGraph', 'mindmap', 'timeline', 'quadrantChart'
+                'gitGraph', 'mindmap', 'timeline', 'quadrantChart', 'xychart'
             ];
 
-            const isMermaid = mermaidKeywords.some(keyword =>
-                text.startsWith(keyword + ' ') ||
-                text.startsWith(keyword + '\n') ||
-                text === keyword
-            );
+            let count = 0;
 
-            // Also check for language-mermaid class
-            const hasClass = code.className.includes('mermaid') ||
-                           code.className.includes('language-mermaid');
+            for (const code of codeBlocks) {
+                const pre = code.parentElement;
+                if (!pre || pre.tagName !== 'PRE') continue;
+                if (pre.dataset.mermaidDone === 'true') continue;
 
-            if (isMermaid || hasClass) {
-                console.log('Found mermaid diagram:', index, text.substring(0, 50));
+                const text = code.textContent.trim();
+                const firstLine = text.split('\n')[0].trim();
 
-                pre.dataset.mermaidProcessed = 'true';
-                diagramCount++;
+                // Check if it's a mermaid diagram
+                const isMermaid = mermaidKeywords.some(kw =>
+                    firstLine.startsWith(kw + ' ') ||
+                    firstLine.startsWith(kw + '\n') ||
+                    firstLine === kw ||
+                    firstLine.startsWith(kw + '-')
+                );
+
+                if (!isMermaid) continue;
+
+                pre.dataset.mermaidDone = 'true';
+                count++;
 
                 // Create unique ID
-                const id = 'mermaid-' + Date.now() + '-' + index;
+                const id = 'mermaid-diagram-' + Date.now() + '-' + count;
 
                 // Create container
                 const container = document.createElement('div');
-                container.className = 'mermaid';
-                container.id = id;
-                container.textContent = text;
+                container.className = 'mermaid-container';
+                container.style.cssText = 'margin: 1rem 0; overflow-x: auto;';
+
+                const diagramDiv = document.createElement('div');
+                diagramDiv.id = id;
+                diagramDiv.className = 'mermaid';
+                diagramDiv.textContent = text;
+
+                container.appendChild(diagramDiv);
 
                 // Replace pre with container
                 pre.parentNode.replaceChild(container, pre);
             }
-        });
 
-        console.log('Mermaid diagrams to render:', diagramCount);
-
-        if (diagramCount > 0) {
-            // Run mermaid on unprocessed diagrams
-            setTimeout(function() {
-                try {
-                    mermaid.run({
-                        querySelector: '.mermaid:not([data-processed])'
-                    });
-                } catch (e) {
-                    console.error('Mermaid render error:', e);
-                }
-            }, 100);
-        }
-    }
-
-    function checkAndRender() {
-        // Only proceed on docs page
-        if (!window.location.pathname.startsWith('/docs')) return;
-
-        console.log('Checking for mermaid diagrams on /docs');
-
-        loadMermaid(function() {
-            console.log('Mermaid loaded, rendering...');
-            setTimeout(renderMermaidDiagrams, 300);
-        });
-    }
-
-    // Initial check after page load
-    function init() {
-        setTimeout(checkAndRender, 500);
-
-        // Watch for URL changes (Dash SPA navigation)
-        let lastPath = window.location.pathname;
-        setInterval(function() {
-            const currentPath = window.location.pathname;
-            if (currentPath !== lastPath) {
-                lastPath = currentPath;
-                if (currentPath.startsWith('/docs')) {
-                    setTimeout(checkAndRender, 500);
-                }
+            if (count > 0) {
+                // Run mermaid on new diagrams
+                await mermaid.run({
+                    querySelector: '.mermaid:not([data-processed="true"])'
+                });
             }
-        }, 300);
-
-        // Watch for content changes in docs-content (tab switches)
-        const observer = new MutationObserver(function(mutations) {
-            if (!window.location.pathname.startsWith('/docs')) return;
-
-            // Debounce
-            clearTimeout(observer.timeout);
-            observer.timeout = setTimeout(function() {
-                console.log('Content changed, re-rendering mermaid');
-                renderMermaidDiagrams();
-            }, 400);
-        });
-
-        // Start observing when docs-content exists
-        function startObserver() {
-            const target = document.getElementById('docs-content');
-            if (target) {
-                observer.observe(target, { childList: true, subtree: true, characterData: true });
-                console.log('Mermaid observer started');
-            } else {
-                setTimeout(startObserver, 500);
-            }
-        }
-
-        if (window.location.pathname.startsWith('/docs')) {
-            setTimeout(startObserver, 1000);
+        } catch (e) {
+            console.error('Mermaid render error:', e);
+        } finally {
+            renderPending = false;
         }
     }
 
+    // Initialize
+    async function init() {
+        try {
+            await loadMermaid();
+            mermaidReady = true;
+
+            // Initial render if on docs page
+            if (window.location.pathname.includes('/docs')) {
+                setTimeout(renderDiagrams, 300);
+            }
+
+            // Watch for content changes (Dash callbacks)
+            const observer = new MutationObserver((mutations) => {
+                if (!window.location.pathname.includes('/docs')) return;
+
+                // Check if any mutations added new content
+                const hasNewContent = mutations.some(m =>
+                    m.addedNodes.length > 0 || m.type === 'characterData'
+                );
+
+                if (hasNewContent && mermaidReady) {
+                    setTimeout(renderDiagrams, 200);
+                }
+            });
+
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true,
+                characterData: true
+            });
+
+            // Watch for theme changes
+            const themeObserver = new MutationObserver((mutations) => {
+                for (const m of mutations) {
+                    if (m.attributeName === 'data-mantine-color-scheme') {
+                        // Re-render all diagrams with new theme
+                        document.querySelectorAll('[data-mermaid-done="true"]').forEach(el => {
+                            el.dataset.mermaidDone = 'false';
+                        });
+                        document.querySelectorAll('.mermaid-container').forEach(el => el.remove());
+                        setTimeout(renderDiagrams, 100);
+                    }
+                }
+            });
+
+            themeObserver.observe(document.documentElement, { attributes: true });
+
+            // Also handle SPA navigation
+            let lastPath = window.location.pathname;
+            setInterval(() => {
+                if (window.location.pathname !== lastPath) {
+                    lastPath = window.location.pathname;
+                    if (lastPath.includes('/docs')) {
+                        setTimeout(renderDiagrams, 500);
+                    }
+                }
+            }, 200);
+
+        } catch (e) {
+            console.error('Failed to initialize mermaid:', e);
+        }
+    }
+
+    // Start when DOM is ready
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
     } else {
