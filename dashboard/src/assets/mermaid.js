@@ -1,26 +1,21 @@
 // Mermaid renderer for CerberusRisk documentation
-// Converts ```mermaid code blocks to rendered diagrams
+// Uses locally bundled mermaid.min.js (loaded by Dash from assets folder)
 
 (function() {
     'use strict';
 
-    let mermaidReady = false;
     let renderPending = false;
 
-    // Load mermaid library
-    function loadMermaid() {
-        return new Promise((resolve, reject) => {
-            if (typeof mermaid !== 'undefined') {
-                resolve();
-                return;
-            }
-
-            const script = document.createElement('script');
-            script.src = 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js';
-            script.onload = resolve;
-            script.onerror = reject;
-            document.head.appendChild(script);
-        });
+    // Wait for mermaid to be available (loaded from mermaid.min.js)
+    function waitForMermaid(callback, attempts) {
+        attempts = attempts || 0;
+        if (typeof mermaid !== 'undefined') {
+            callback();
+        } else if (attempts < 50) {
+            setTimeout(() => waitForMermaid(callback, attempts + 1), 100);
+        } else {
+            console.error('Mermaid library not loaded');
+        }
     }
 
     // Get theme config based on current color scheme
@@ -66,10 +61,12 @@
     // Find and render mermaid diagrams
     async function renderDiagrams() {
         if (renderPending) return;
+        if (typeof mermaid === 'undefined') return;
+
         renderPending = true;
 
         // Small delay to let DOM settle
-        await new Promise(r => setTimeout(r, 100));
+        await new Promise(r => setTimeout(r, 150));
 
         try {
             // Re-initialize mermaid with current theme
@@ -140,11 +137,8 @@
     }
 
     // Initialize
-    async function init() {
-        try {
-            await loadMermaid();
-            mermaidReady = true;
-
+    function init() {
+        waitForMermaid(() => {
             // Initial render if on docs page
             if (window.location.pathname.includes('/docs')) {
                 setTimeout(renderDiagrams, 300);
@@ -154,12 +148,11 @@
             const observer = new MutationObserver((mutations) => {
                 if (!window.location.pathname.includes('/docs')) return;
 
-                // Check if any mutations added new content
                 const hasNewContent = mutations.some(m =>
                     m.addedNodes.length > 0 || m.type === 'characterData'
                 );
 
-                if (hasNewContent && mermaidReady) {
+                if (hasNewContent) {
                     setTimeout(renderDiagrams, 200);
                 }
             });
@@ -174,7 +167,7 @@
             const themeObserver = new MutationObserver((mutations) => {
                 for (const m of mutations) {
                     if (m.attributeName === 'data-mantine-color-scheme') {
-                        // Re-render all diagrams with new theme
+                        // Reset and re-render diagrams with new theme
                         document.querySelectorAll('[data-mermaid-done="true"]').forEach(el => {
                             el.dataset.mermaidDone = 'false';
                         });
@@ -186,7 +179,7 @@
 
             themeObserver.observe(document.documentElement, { attributes: true });
 
-            // Also handle SPA navigation
+            // Handle SPA navigation
             let lastPath = window.location.pathname;
             setInterval(() => {
                 if (window.location.pathname !== lastPath) {
@@ -196,10 +189,7 @@
                     }
                 }
             }, 200);
-
-        } catch (e) {
-            console.error('Failed to initialize mermaid:', e);
-        }
+        });
     }
 
     // Start when DOM is ready
