@@ -304,3 +304,26 @@ class MarketDataService:
             ticker: data.get("sector", "Unknown") if data else "Unknown"
             for ticker, data in info.items()
         }
+
+    def clear_cache(self, tickers: list[str]) -> int:
+        """Clear cached data for given tickers. Returns count of keys deleted."""
+        keys_deleted = 0
+        for ticker in tickers:
+            for key in [
+                self._history_key(ticker),
+                self._cache_key(ticker),
+                self._info_key(ticker),
+                self._volume_key(ticker),
+            ]:
+                if self.redis.delete(key):
+                    keys_deleted += 1
+        return keys_deleted
+
+    def refresh_histories(self, tickers: list[str], period: str = "1y") -> dict[str, int]:
+        """Clear cache and fetch fresh history data. Returns status per ticker."""
+        self.clear_cache(tickers)
+        histories = self.get_histories(tickers, period)
+        return {
+            ticker: len(data) if data else 0
+            for ticker, data in histories.items()
+        }

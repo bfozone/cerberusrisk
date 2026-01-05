@@ -12,5 +12,15 @@ from src.components.charts import (
     grouped_bar_chart,
     correlation_heatmap,
     fan_chart,
+    benchmark_line_chart,
+    waterfall_chart,
 )
 from src.components.tables import data_table
+from src.components.comparison import (
+    benchmark_comparison_cards,
+    delta_badge,
+    compliance_banner,
+    action_card,
+    section_header,
+    metric_cards_row,
+)

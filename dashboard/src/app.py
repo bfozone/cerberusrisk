@@ -11,6 +11,7 @@ app = Dash(
     use_pages=True,
     suppress_callback_exceptions=True,
     assets_folder="assets",
+    update_title=None,  # Disable title updates during callbacks
 )
 app._favicon = "favicon.svg"
 server = app.server
@@ -327,6 +328,7 @@ def update_nav(pathname, scheme):
     return [
         nav_link("Home", "/", "home", pathname, icon_color),
         nav_link("Portfolio Analytics", "/analytics", "chart-line", pathname, icon_color),
+        nav_link("Documentation", "/docs", "layers", pathname, icon_color),
     ]
 
 

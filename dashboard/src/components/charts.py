@@ -13,6 +13,16 @@ def _hex_to_luminance(hex_color: str) -> float:
     return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
 
+def _interpolate_color(color1: str, color2: str, t: float) -> str:
+    """Interpolate between two hex colors. t=0 gives color1, t=1 gives color2."""
+    c1 = color1.lstrip("#")
+    c2 = color2.lstrip("#")
+    r = int(int(c1[0:2], 16) * (1 - t) + int(c2[0:2], 16) * t)
+    g = int(int(c1[2:4], 16) * (1 - t) + int(c2[2:4], 16) * t)
+    b = int(int(c1[4:6], 16) * (1 - t) + int(c2[4:6], 16) * t)
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
 def _get_text_colors(z: list, zmin: float, zmax: float, colorscale: list) -> list:
     """Generate contrasting text colors for each cell based on background luminance."""
     text_colors = []
@@ -25,11 +35,12 @@ def _get_text_colors(z: list, zmin: float, zmax: float, colorscale: list) -> lis
             else:
                 norm = max(0, min(1, (val - zmin) / (zmax - zmin)))
 
-            # Find the color at this position in the colorscale
-            bg_color = colorscale[-1][1]  # default to last color
+            # Interpolate to find the actual background color
+            bg_color = colorscale[-1][1]
             for i in range(len(colorscale) - 1):
                 if colorscale[i][0] <= norm <= colorscale[i + 1][0]:
-                    bg_color = colorscale[i][1]  # use lower bound color
+                    t = (norm - colorscale[i][0]) / (colorscale[i + 1][0] - colorscale[i][0])
+                    bg_color = _interpolate_color(colorscale[i][1], colorscale[i + 1][1], t)
                     break
 
             # Choose white or dark text based on luminance
@@ -117,13 +128,13 @@ def chart_layout(height: int = 350, scheme: str = "dark", **kwargs) -> dict:
             "size": 12,
         },
         "xaxis": {
-            "gridcolor": settings["grid_color"],
+            "showgrid": False,
             "linecolor": settings["grid_color"],
             "tickfont": {"color": settings["font_secondary"], "size": 11},
             "title_font": {"color": settings["font_color"], "size": 12},
         },
         "yaxis": {
-            "gridcolor": settings["grid_color"],
+            "showgrid": False,
             "linecolor": settings["grid_color"],
             "tickfont": {"color": settings["font_secondary"], "size": 11},
             "title_font": {"color": settings["font_color"], "size": 12},
@@ -635,4 +646,99 @@ def fan_chart(
     layout["yaxis_title"] = "Portfolio Value (Start = 100)"
     fig.update_layout(**layout)
 
+    return fig
+
+
+def benchmark_line_chart(
+    x: list,
+    portfolio_y: list,
+    benchmark_y: list,
+    portfolio_label: str = "Portfolio",
+    benchmark_label: str = "Benchmark (SPY)",
+    height: int = 350,
+    scheme: str = "dark",
+    **layout_kwargs,
+) -> go.Figure:
+    """Dual-series line chart for portfolio vs benchmark comparison.
+
+    Uses consistent styling: portfolio in primary purple, benchmark in gray dashed.
+    """
+    settings = THEME_SETTINGS.get(scheme, THEME_SETTINGS["dark"])
+
+    fig = go.Figure()
+
+    # Portfolio line (primary, solid)
+    fig.add_trace(
+        go.Scatter(
+            x=x,
+            y=portfolio_y,
+            name=portfolio_label,
+            mode="lines",
+            line=dict(color=CHART_COLORS["primary"], width=2),
+            hovertemplate=f"<b>{portfolio_label}</b><br>%{{x}}<br>%{{y:.2f}}%<extra></extra>",
+        )
+    )
+
+    # Benchmark line (gray, dashed)
+    fig.add_trace(
+        go.Scatter(
+            x=x,
+            y=benchmark_y,
+            name=benchmark_label,
+            mode="lines",
+            line=dict(color=settings["benchmark"], width=2, dash="dot"),
+            hovertemplate=f"<b>{benchmark_label}</b><br>%{{x}}<br>%{{y:.2f}}%<extra></extra>",
+        )
+    )
+
+    fig.update_layout(**chart_layout(height=height, scheme=scheme, **layout_kwargs))
+    return fig
+
+
+def waterfall_chart(
+    labels: list[str],
+    values: list[float],
+    height: int = 350,
+    horizontal: bool = True,
+    scheme: str = "dark",
+    **layout_kwargs,
+) -> go.Figure:
+    """Create a waterfall chart for contribution breakdown.
+
+    Positive values shown in green, negative in red.
+    Useful for showing position contributions to P&L or risk.
+    """
+    colors = [CHART_COLORS["positive"] if v >= 0 else CHART_COLORS["negative"] for v in values]
+
+    if horizontal:
+        fig = go.Figure(
+            data=go.Bar(
+                y=labels,
+                x=values,
+                orientation="h",
+                marker_color=colors,
+                marker_line_width=0,
+                marker_cornerradius=4,
+                text=[f"{v:+.2f}%" for v in values],
+                textposition="outside",
+                textfont={"size": 10},
+            )
+        )
+        layout_kwargs.setdefault("xaxis_title", "Contribution (%)")
+    else:
+        fig = go.Figure(
+            data=go.Bar(
+                x=labels,
+                y=values,
+                marker_color=colors,
+                marker_line_width=0,
+                marker_cornerradius=4,
+                text=[f"{v:+.2f}%" for v in values],
+                textposition="outside",
+                textfont={"size": 10},
+            )
+        )
+        layout_kwargs.setdefault("yaxis_title", "Contribution (%)")
+
+    fig.update_layout(**chart_layout(height=height, scheme=scheme, **layout_kwargs))
     return fig

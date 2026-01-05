@@ -277,7 +277,7 @@ class GIPSService:
         portfolio_values: list[float],
         dates: list[str],
         benchmark_prices: list[float],
-        window_days: int = 252,
+        window_days: int = 240,  # ~11.5 months of trading days
     ) -> list[GIPSRollingReturn]:
         """Calculate rolling 12-month returns."""
         if len(portfolio_values) < window_days:

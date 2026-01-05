@@ -89,3 +89,16 @@ def get_data_info(portfolio_id: int, db: Session = Depends(get_db)):
         trading_days=len(history),
         period="1y",
     )
+
+
+@router.post("/portfolios/{portfolio_id}/refresh-data")
+def refresh_portfolio_data(portfolio_id: int, db: Session = Depends(get_db)):
+    portfolio = db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
+    if not portfolio:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+
+    tickers = [p.ticker for p in portfolio.positions if p.ticker != "CASH"]
+    tickers.append("SPY")  # Include benchmark
+
+    result = market_service.refresh_histories(tickers)
+    return {"status": "ok", "tickers_refreshed": result}

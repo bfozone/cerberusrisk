@@ -266,3 +266,15 @@ def get_guidelines(portfolio_id: int):
         return r.json()
     except Exception:
         return None
+
+
+def refresh_portfolio_data(portfolio_id: int):
+    try:
+        r = requests.post(
+            f"{API_URL}/api/portfolios/{portfolio_id}/refresh-data",
+            timeout=120,
+        )
+        r.raise_for_status()
+        return r.json()
+    except Exception:
+        return None

@@ -1,0 +1,96 @@
+// Mermaid initialization for markdown documentation
+// This script loads Mermaid.js and renders diagrams in code blocks
+
+(function() {
+    // Load Mermaid from CDN
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js';
+    script.onload = function() {
+        // Initialize with theme detection
+        const isDark = document.documentElement.getAttribute('data-mantine-color-scheme') === 'dark';
+
+        mermaid.initialize({
+            startOnLoad: false,
+            theme: isDark ? 'dark' : 'default',
+            themeVariables: isDark ? {
+                primaryColor: '#a78bfa',
+                primaryTextColor: '#ffffff',
+                primaryBorderColor: '#6b5b95',
+                lineColor: '#c8c8d8',
+                secondaryColor: '#1a1a24',
+                tertiaryColor: '#0d0d12',
+                background: '#1a1a24',
+                mainBkg: '#1a1a24',
+                nodeBorder: '#a78bfa',
+                clusterBkg: '#22222e',
+                titleColor: '#a78bfa',
+                edgeLabelBackground: '#1a1a24'
+            } : {
+                primaryColor: '#7c3aed',
+                primaryTextColor: '#1e1b2e',
+                primaryBorderColor: '#d8b4fe',
+                lineColor: '#4a4760',
+                secondaryColor: '#f5f3f7',
+                tertiaryColor: '#faf9fb',
+                background: '#ffffff',
+                mainBkg: '#ffffff',
+                nodeBorder: '#7c3aed',
+                clusterBkg: '#f8f7fa',
+                titleColor: '#7c3aed',
+                edgeLabelBackground: '#ffffff'
+            }
+        });
+
+        renderMermaidDiagrams();
+
+        // Re-render on theme change
+        const observer = new MutationObserver(function(mutations) {
+            mutations.forEach(function(mutation) {
+                if (mutation.attributeName === 'data-mantine-color-scheme') {
+                    location.reload(); // Simplest way to re-init mermaid with new theme
+                }
+            });
+        });
+        observer.observe(document.documentElement, { attributes: true });
+    };
+    document.head.appendChild(script);
+
+    // Render mermaid diagrams in markdown code blocks
+    function renderMermaidDiagrams() {
+        // Find code blocks with 'mermaid' language
+        const codeBlocks = document.querySelectorAll('pre code.language-mermaid, pre code.mermaid');
+
+        codeBlocks.forEach(function(code, index) {
+            const pre = code.parentElement;
+            const diagram = code.textContent;
+
+            // Create container for mermaid
+            const container = document.createElement('div');
+            container.className = 'mermaid';
+            container.textContent = diagram;
+
+            // Replace pre with mermaid container
+            pre.parentNode.replaceChild(container, pre);
+        });
+
+        // Run mermaid
+        mermaid.run();
+    }
+
+    // Re-run when Dash updates content (for tab switches)
+    const bodyObserver = new MutationObserver(function(mutations) {
+        const hasMermaidCode = document.querySelector('pre code.language-mermaid, pre code.mermaid');
+        if (hasMermaidCode && typeof mermaid !== 'undefined') {
+            setTimeout(renderMermaidDiagrams, 100);
+        }
+    });
+
+    // Start observing after DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() {
+            bodyObserver.observe(document.body, { childList: true, subtree: true });
+        });
+    } else {
+        bodyObserver.observe(document.body, { childList: true, subtree: true });
+    }
+})();

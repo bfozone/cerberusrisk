@@ -7,7 +7,7 @@ from src.api import get_portfolios, get_portfolio_risk
 from src.components import portfolio_card, empty_figure
 from src.components.charts import CHART_COLORS, chart_layout
 
-dash.register_page(__name__, path="/", name="Home")
+dash.register_page(__name__, path="/", name="Home", title="CerberusRisk - Home")
 
 
 def layout():
