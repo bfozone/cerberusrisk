@@ -119,8 +119,9 @@
 
                 container.appendChild(diagramDiv);
 
-                // Replace pre with container
-                pre.parentNode.replaceChild(container, pre);
+                // Hide pre (don't remove - Dash needs it) and insert container after
+                pre.style.display = 'none';
+                pre.insertAdjacentElement('afterend', container);
             }
 
             if (count > 0) {
@@ -169,6 +170,7 @@
                     if (m.attributeName === 'data-mantine-color-scheme') {
                         // Reset and re-render diagrams with new theme
                         document.querySelectorAll('[data-mermaid-done="true"]').forEach(el => {
+                            el.style.display = '';
                             el.dataset.mermaidDone = 'false';
                         });
                         document.querySelectorAll('.mermaid-container').forEach(el => el.remove());

@@ -8,51 +8,73 @@ dash.register_page(__name__, path="/docs", name="Documentation")
 # Path to docs folder
 DOCS_PATH = Path(__file__).parent.parent / "docs"
 
-
-def get_doc_files():
-    """Get all markdown files from docs folder."""
-    if not DOCS_PATH.exists():
-        return []
-    return sorted(DOCS_PATH.glob("*.md"))
-
-
-def file_to_tab_label(filepath: Path) -> str:
-    """Convert filename to readable tab label."""
-    # overview.md -> Overview, risk-metrics.md -> Risk Metrics
-    name = filepath.stem.replace("-", " ").replace("_", " ")
-    return name.title()
+# Define doc groups with order
+DOC_GROUPS = [
+    {
+        "label": "User Guide",
+        "docs": [
+            ("overview", "Overview"),
+            ("getting-started", "Getting Started"),
+        ],
+    },
+    {
+        "label": "Analytics",
+        "docs": [
+            ("risk-metrics", "Risk Metrics"),
+            ("stress-testing", "Stress Testing"),
+            ("compliance", "Compliance"),
+        ],
+    },
+    {
+        "label": "Technical",
+        "docs": [
+            ("architecture", "Architecture"),
+            ("api-reference", "API Reference"),
+            ("glossary", "Glossary"),
+        ],
+    },
+]
 
 
 def layout():
-    doc_files = get_doc_files()
+    # Build tabs with group labels
+    tabs_children = []
 
-    if not doc_files:
-        return dmc.Stack([
-            dmc.Title("Documentation", order=2),
-            dmc.Alert("No documentation files found.", color="yellow"),
-        ])
+    for group in DOC_GROUPS:
+        # Add group label (non-clickable)
+        tabs_children.append(
+            dmc.Text(
+                group["label"],
+                size="xs",
+                fw=600,
+                c="dimmed",
+                style={"padding": "8px 12px 4px 12px", "textTransform": "uppercase"},
+            )
+        )
+        # Add doc tabs for this group
+        for doc_id, doc_label in group["docs"]:
+            doc_path = DOCS_PATH / f"{doc_id}.md"
+            if doc_path.exists():
+                tabs_children.append(
+                    dmc.TabsTab(doc_label, value=doc_id)
+                )
 
-    # Create tabs from markdown files
-    tabs_list = [
-        dmc.TabsTab(file_to_tab_label(f), value=f.stem)
-        for f in doc_files
-    ]
-
-    # Default to first file
-    default_tab = doc_files[0].stem
+    # Default to overview
+    default_tab = "overview"
 
     return dmc.Stack(
         [
             dmc.Title("Documentation", order=2),
             dmc.Tabs(
                 [
-                    dmc.TabsList(tabs_list),
+                    dmc.TabsList(tabs_children),
                 ],
                 id="docs-tabs",
                 value=default_tab,
                 variant="outline",
+                orientation="horizontal",
             ),
-            # Content area outside tabs - updates via callback
+            # Content area
             dcc.Loading(
                 dmc.Paper(
                     dcc.Markdown(
