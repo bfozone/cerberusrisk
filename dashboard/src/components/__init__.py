@@ -1,4 +1,4 @@
-from src.components.cards import metric_card, portfolio_card
+from src.components.cards import metric_card, portfolio_card, portfolio_card_enhanced
 from src.components.charts import (
     dark_layout,
     bar_chart,
@@ -14,6 +14,7 @@ from src.components.charts import (
     fan_chart,
     benchmark_line_chart,
     waterfall_chart,
+    sparkline_chart,
 )
 from src.components.tables import data_table
 from src.components.comparison import (

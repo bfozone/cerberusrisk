@@ -68,13 +68,20 @@ dash.register_page(__name__, path="/analytics", name="Portfolio Analytics", titl
 # ============================================================================
 
 
-def layout():
+def layout(portfolio=None, **kwargs):
     portfolios = get_portfolios()
     if not portfolios:
         return dmc.Text("No portfolios available")
 
     portfolio_options = [{"label": p["name"], "value": str(p["id"])} for p in portfolios]
-    default_id = portfolios[0]["id"]
+    # Use URL parameter if provided, otherwise default to first portfolio
+    if portfolio is not None:
+        try:
+            default_id = int(portfolio)
+        except (ValueError, TypeError):
+            default_id = portfolios[0]["id"]
+    else:
+        default_id = portfolios[0]["id"]
 
     scenarios = get_stress_scenarios()
     scenario_options = [{"label": s["name"], "value": s["id"]} for s in scenarios]

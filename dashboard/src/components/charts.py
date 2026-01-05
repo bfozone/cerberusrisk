@@ -142,6 +142,11 @@ def chart_layout(height: int = 350, scheme: str = "dark", **kwargs) -> dict:
         "legend": {
             "font": {"color": settings["font_secondary"], "size": 11},
             "bgcolor": "rgba(0,0,0,0)",
+            "orientation": "h",
+            "yanchor": "top",
+            "y": -0.15,
+            "xanchor": "center",
+            "x": 0.5,
         },
         "hoverlabel": {
             "bgcolor": settings["tooltip_bg"],
@@ -632,16 +637,9 @@ def fan_chart(
     )
 
     layout = chart_layout(height=height, scheme=scheme, **layout_kwargs)
-    # Add extra right margin for VaR labels
+    # Add extra right margin for VaR labels and bottom margin for legend
     layout["margin"]["r"] = 100
-    # Override legend position for horizontal display above chart
-    layout["legend"].update(
-        orientation="h",
-        yanchor="bottom",
-        y=1.02,
-        xanchor="center",
-        x=0.5,
-    )
+    layout["margin"]["b"] = 60
     layout["xaxis_title"] = "Trading Days"
     layout["yaxis_title"] = "Portfolio Value (Start = 100)"
     fig.update_layout(**layout)
@@ -741,4 +739,65 @@ def waterfall_chart(
         layout_kwargs.setdefault("yaxis_title", "Contribution (%)")
 
     fig.update_layout(**chart_layout(height=height, scheme=scheme, **layout_kwargs))
+    return fig
+
+
+def sparkline_chart(
+    values: list,
+    height: int = 80,
+    scheme: str = "dark",
+    color: str | None = None,
+    fill: bool = True,
+) -> go.Figure:
+    """Create a minimal sparkline chart for embedding in cards.
+
+    Designed for drawdown series (0 = peak, negative = below peak) or any small time series.
+    No axes, no labels, just the line/area.
+    """
+    settings = THEME_SETTINGS.get(scheme, THEME_SETTINGS["dark"])
+    line_color = color or CHART_COLORS["primary"]
+
+    # Create x-axis as simple indices
+    x = list(range(len(values)))
+
+    fig = go.Figure()
+
+    if fill:
+        # Area fill for drawdown visualization
+        fill_rgba = line_color.lstrip("#")
+        r, g, b = tuple(int(fill_rgba[i : i + 2], 16) for i in (0, 2, 4))
+
+        fig.add_trace(
+            go.Scatter(
+                x=x,
+                y=values,
+                mode="lines",
+                fill="tozeroy",
+                fillcolor=f"rgba({r},{g},{b},0.3)",
+                line=dict(color=line_color, width=1.5),
+                hoverinfo="skip",
+            )
+        )
+    else:
+        fig.add_trace(
+            go.Scatter(
+                x=x,
+                y=values,
+                mode="lines",
+                line=dict(color=line_color, width=1.5),
+                hoverinfo="skip",
+            )
+        )
+
+    fig.update_layout(
+        template=settings["template"],
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        height=height,
+        margin=dict(l=0, r=0, t=0, b=0),
+        showlegend=False,
+        xaxis=dict(visible=False, fixedrange=True),
+        yaxis=dict(visible=False, fixedrange=True),
+    )
+
     return fig
