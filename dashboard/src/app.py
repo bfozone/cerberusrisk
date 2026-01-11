@@ -12,6 +12,13 @@ app = Dash(
     suppress_callback_exceptions=True,
     assets_folder="assets",
     update_title=None,  # Disable title updates during callbacks
+    external_scripts=[
+        {
+            "src": "https://analytics.cerberusrisk.io/script.js",
+            "data-website-id": "ee931437-cc47-49ac-8e2a-a6c7b8e97d38",
+            "defer": True,
+        }
+    ],
 )
 app._favicon = "favicon.svg"
 server = app.server
